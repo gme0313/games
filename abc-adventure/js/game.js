@@ -6,21 +6,50 @@ const COLORS = [0xff9db8, 0x8fd0f5, 0x8fe0b4, 0xffc46b, 0xc3a4f2, 0xffa98a];
 const POOL = 'ABCDE';      // 本關出題的字母範圍
 const ROUNDS = 5;          // 本關題數
 const SPEED = 170;         // 小暴龍走路速度（像素/秒）
-const STOP_GAP = 760;      // 每題之間的距離
+const STOP_GAP = 590;      // 每題之間的距離（約 3.5 秒的路程）
 
 const pick = a => a[Math.floor(Math.random() * a.length)];
 const shuffle = a => a.map(x => [Math.random(), x]).sort((p, q) => p[0] - q[0]).map(p => p[1]);
 
 // ---- 語音與音效 ----
-function say(parts) {
-  if (!('speechSynthesis' in window)) return Promise.resolve();
-  speechSynthesis.cancel();
-  return Promise.all(parts.map(([t, l]) => new Promise(res => {
-    const u = new SpeechSynthesisUtterance(t);
-    u.lang = l; u.rate = 0.85; u.pitch = 1.2;
-    u.onend = u.onerror = res;
+const PRAISE = ['你好棒！', '答對了，好厲害！', '哇，你好聰明喔！', '太棒了，答對囉！'];
+const hasTTS = 'speechSynthesis' in window;
+if (hasTTS) speechSynthesis.getVoices();   // 先觸發語音清單載入（Chrome 是非同步的）
+
+// 挑最適合的語音：優先該語言的「Natural / Online」，其次 Google，其餘最後
+// 中文只接受台灣腔（zh-TW / Hant-TW），找不到才退而求其次用其他中文
+function voiceFor(lang) {
+  const norm = s => s.replace('_', '-').toLowerCase();
+  const want = norm(lang), base = want.split('-')[0];
+  const voices = speechSynthesis.getVoices();
+  const exact = voices.filter(v => { const l = norm(v.lang); return l === want || (base === 'zh' && /tw|hant/.test(l)); });
+  const pool = exact.length ? exact : voices.filter(v => norm(v.lang).startsWith(base));
+  const score = v => (/natural|online/i.test(v.name) ? 3 : /google/i.test(v.name) ? 2 : 0);
+  return pool.sort((a, b) => score(b) - score(a))[0];
+}
+// 唸一句；Android 偶爾不會觸發 onend，所以加上逾時保底，避免遊戲卡住
+function speakOne(text, lang) {
+  return new Promise(resolve => {
+    const zh = lang.startsWith('zh'), u = new SpeechSynthesisUtterance(text);
+    u.lang = lang; u.rate = zh ? 0.9 : 0.85; u.pitch = zh ? 1.05 : 1.15;
+    const v = voiceFor(lang);
+    if (v) u.voice = v;
+    const end = () => { clearTimeout(timer); resolve(); };
+    const timer = setTimeout(end, 1500 + text.length * 400);
+    u.onend = u.onerror = end;
     speechSynthesis.speak(u);
-  })));
+  });
+}
+// 依序唸出多段 [文字, 語言]；一種語言一段，不要把中英文混在同一句
+let sayId = 0;
+async function say(parts) {
+  if (!hasTTS) return;
+  const id = ++sayId;
+  speechSynthesis.cancel();
+  for (const [text, lang] of parts) {
+    if (id !== sayId) return;   // 已被新的語音取代
+    await speakOne(text, lang);
+  }
 }
 let ac;
 function beep(freqs) {
@@ -369,15 +398,14 @@ class WalkScene extends Phaser.Scene {
     this.tweens.add({ targets: p, y: 340, duration: 450, ease: 'Back.out' });
     this.speakQuestion(en, zh);
   }
-  speakQuestion(en, zh) { say([[en, 'en-US'], [zh + '，是哪個字母開頭呢？', 'zh-TW']]); }
+  speakQuestion(en, zh) { if (this.state === 'ask') say([[en, 'en-US'], [zh + '，是哪個字母開頭呢？', 'zh-TW']]); }
   correct(t, en) {
     this.score++; this.scoreText.setText('⭐ ' + this.score);
     beep([523, 659, 784]); confetti(this);
     this.hero.setTexture('heroCheer');
     this.tweens.add({ targets: this.hero, y: GROUND - 70, duration: 250, yoyo: true, repeat: 1, ease: 'Sine.out' });
     this.question.setText(`${t} is for ${en}!`).setColor('#f06a9b').setFontSize(40);
-    say([[`${t}, ${t}, ${en}!`, 'en-US']])
-      .then(() => say([['Great job! 你好棒！', 'en-US']]))
+    say([[`${t}, ${t}, ${en}!`, 'en-US'], ['Great job!', 'en-US'], [pick(PRAISE), 'zh-TW']])
       .then(() => this.next());
   }
   next() {
@@ -404,7 +432,7 @@ class EndScene extends Phaser.Scene {
     button(this, W / 2, 400, 340, 100, COLORS[1], '🔁 再玩一次', 44, () => this.scene.start('Walk'));
     this.cameras.main.fadeIn(500, 255, 230, 245);
     beep([523, 659, 784, 1046]); confetti(this);
-    say([['You did it! 你完成了！', 'en-US']]);
+    say([['You did it!', 'en-US'], ['你完成了，太棒了！', 'zh-TW']]);
   }
 }
 
