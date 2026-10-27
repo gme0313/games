@@ -327,17 +327,32 @@ function loadSeen() {
 function saveSeen(seen) {
   try { localStorage.setItem(SEEN_KEY, JSON.stringify([...seen])); } catch (e) {}
 }
+// 兩種題型：word＝看圖選開頭字母；case＝看大寫字母選對應的小寫
+const CASE_QUESTIONS = 3;                         // 每關 ROUNDS 題裡有幾題大小寫配對
+const ALPHABET = [...'ABCDEFGHIJKLMNOPQRSTUVWXYZ'];
+const CONFUSABLE = ['bdpq', 'nu', 'mw', 'gq'];    // 小寫長得像的字母，不放進同一題的選項
+
 function pickQuestions() {
   const seen = loadSeen();
-  const questions = shuffle(Object.keys(WORDS)).slice(0, ROUNDS).map(letter => {
+  const wordLetters = shuffle(Object.keys(WORDS)).slice(0, ROUNDS - CASE_QUESTIONS);
+  const caseLetters = shuffle(ALPHABET.filter(c => !wordLetters.includes(c))).slice(0, CASE_QUESTIONS);
+  const wordQs = wordLetters.map(letter => {
     let fresh = WORDS[letter].filter(w => !seen.has(w[0]));
     if (!fresh.length) { WORDS[letter].forEach(w => seen.delete(w[0])); fresh = WORDS[letter]; }   // 都玩過就重新輪一輪
     const [en, zh, emoji] = pick(fresh);
     seen.add(en);
-    return { letter, en, zh, emoji };
+    return { type: 'word', letter, en, zh, emoji };
   });
   saveSeen(seen);
-  return questions;
+  const caseQs = caseLetters.map(letter => ({ type: 'case', letter }));
+  const [first, ...rest] = wordQs;                // 第 1 題固定是看圖題，其餘隨機穿插
+  return [first, ...shuffle([...rest, ...caseQs])];
+}
+// 大小寫題的干擾選項：兩個其他的小寫字母，避開和答案長得像的
+function lowerOthers(letter) {
+  const ans = letter.toLowerCase();
+  const twin = CONFUSABLE.find(g => g.includes(ans)) || '';
+  return shuffle(ALPHABET.map(c => c.toLowerCase()).filter(c => c !== ans && !twin.includes(c))).slice(0, 2);
 }
 
 // ============ 場景：走路與答題 ============
@@ -363,7 +378,9 @@ class WalkScene extends Phaser.Scene {
     this.hero.play('walk');
     this.cameras.main.fadeIn(500, 255, 230, 245);
 
-    this.progress = txt(this, W - 85, 50, '', 34).setDepth(20);   // 只顯示第幾題，總分留到最後才公布
+    this.scoreText = txt(this, W / 2, 50, '', 40).setDepth(20);   // 上方置中：⭐ 目前得分/滿分
+    this.addScore(0);
+    this.progress = txt(this, W - 70, 50, '', 30).setDepth(20);
     button(this, 50, 50, 64, 64, 0xc3a4f2, '🏠', 30, () => { sayId++; if (hasTTS) speechSynthesis.cancel(); this.scene.start('Title'); }).setDepth(20);
   }
   makeSign(flag) {
@@ -392,21 +409,23 @@ class WalkScene extends Phaser.Scene {
     this.state = 'ask'; this.wrong = 0; this.choices = [];
     this.hero.stop().setTexture('heroIdle');
     const q = this.q = this.questions[this.round];
-    this.progress.setText(`${this.round + 1} / ${ROUNDS}`);
-    const others = shuffle(Object.keys(WORDS).filter(c => c !== q.letter)).slice(0, 2);
+    this.progress.setText(`第 ${this.round + 1} 題`);
+    const isCase = q.type === 'case';
+    this.answer = isCase ? q.letter.toLowerCase() : q.letter;
+    const others = isCase ? lowerOthers(q.letter) : shuffle(Object.keys(WORDS).filter(c => c !== q.letter)).slice(0, 2);
 
     const p = this.panel = this.add.container(W / 2, -400).setDepth(30);
     const bg = this.add.graphics();
     bg.fillStyle(0xb99be0, 0.3).fillRoundedRect(-250, -205, 500, 430, 40);
     bg.fillStyle(0xffffff, 0.94).fillRoundedRect(-250, -215, 500, 430, 40);
     p.add(bg);
-    p.add(this.add.text(0, -120, q.emoji, { fontSize: '110px' }).setOrigin(0.5));
-    this.question = txt(this, 0, -15, `${q.zh}（${q.en}）\n是哪個字母開頭？`, 32, INK, 440);
+    p.add(isCase ? txt(this, 0, -120, q.letter, 130, '#f06a9b') : this.add.text(0, -120, q.emoji, { fontSize: '110px' }).setOrigin(0.5));
+    this.question = txt(this, 0, -15, isCase ? `這是大寫的 ${q.letter}\n哪一個是小寫的 ${q.letter}？` : `${q.zh}（${q.en}）\n是哪個字母開頭？`, 32, INK, 440);
     p.add(this.question);
-    shuffle([q.letter, ...others]).forEach((c, i) => {
+    shuffle([this.answer, ...others]).forEach((c, i) => {
       const btn = button(this, (i - 1) * 155, 125, 125, 125, COLORS[(i + this.round) % COLORS.length], c, 66, b => {
         if (this.state !== 'ask') return;
-        if (c === q.letter) { this.state = 'cheer'; this.correct(); }
+        if (c === this.answer) { this.state = 'cheer'; this.correct(); }
         else this.miss(b);
       });
       this.choices.push({ letter: c, btn });
@@ -416,18 +435,37 @@ class WalkScene extends Phaser.Scene {
     this.tweens.add({ targets: p, y: 340, duration: 450, ease: 'Back.out' });
     this.speakQuestion();
   }
-  speakQuestion() {
-    if (this.state === 'ask') say([[this.q.en, 'en-US'], [this.q.zh + '，是哪個字母開頭呢？', 'zh-TW']]);
+  addScore(n) {
+    this.score += n;
+    this.scoreText.setText(`⭐ ${this.score}/${ROUNDS * 3}`);
+    if (n) this.tweens.add({ targets: this.scoreText, scale: 1.3, duration: 160, yoyo: true });
   }
-  announce() { this.question.setText(`${this.q.letter} is for ${this.q.en}!`).setColor('#f06a9b').setFontSize(40); }
+  speakQuestion() {
+    if (this.state !== 'ask') return;
+    const { type, letter, en, zh } = this.q;
+    say(type === 'case'
+      ? [['這是大寫的', 'zh-TW'], [letter, 'en-US'], ['，哪一個是小寫的', 'zh-TW'], [letter, 'en-US']]
+      : [[en, 'en-US'], [zh + '，是哪個字母開頭呢？', 'zh-TW']]);
+  }
+  // 公布答案時唸的內容與畫面文字
+  answerParts() {
+    const { type, letter, en, zh } = this.q;
+    return type === 'case'
+      ? [['大寫的', 'zh-TW'], [letter, 'en-US'], ['，小寫的', 'zh-TW'], [letter, 'en-US']]
+      : [[`${letter}, ${letter}, ${en}!`, 'en-US'], [zh, 'zh-TW']];
+  }
+  announce() {
+    const { type, letter, en, zh } = this.q;
+    const text = type === 'case' ? `大寫 ${letter}　小寫 ${this.answer}` : `${letter} is for ${en}!\n${zh}`;
+    this.question.setText(text).setColor('#f06a9b').setFontSize(40);
+  }
   correct() {
-    const { letter, en } = this.q;
-    this.score += 3 - this.wrong;
+    this.addScore(3 - this.wrong);
     beep([523, 659, 784]); confetti(this);
     this.hero.setTexture('heroCheer');
     this.tweens.add({ targets: this.hero, y: GROUND - 70, duration: 250, yoyo: true, repeat: 1, ease: 'Sine.out' });
     this.announce();
-    say([[`${letter}, ${letter}, ${en}!`, 'en-US'], ['Great job!', 'en-US'], [pick(PRAISE), 'zh-TW']]).then(() => this.next());
+    say([...this.answerParts(), ['Great job!', 'en-US'], [pick(PRAISE), 'zh-TW']]).then(() => this.next());
   }
   miss(btn) {
     this.wrong++;
@@ -437,12 +475,11 @@ class WalkScene extends Phaser.Scene {
     if (this.wrong < 2) { say([['再試試看喔', 'zh-TW']]); return; }
     // 錯兩次：公布答案，得 1 分，繼續往下一題
     this.state = 'reveal';
-    this.score += 3 - this.wrong;
-    const { letter, en } = this.q;
-    const right = this.choices.find(c => c.letter === letter).btn;
+    this.addScore(3 - this.wrong);
+    const right = this.choices.find(c => c.letter === this.answer).btn;
     this.tweens.add({ targets: right, scale: 1.2, duration: 250, yoyo: true, repeat: 2 });
     this.announce();
-    say([[`${letter}, ${letter}, ${en}!`, 'en-US'], ['沒關係，下次再加油喔！', 'zh-TW']]).then(() => this.next());
+    say([...this.answerParts(), ['沒關係，下次再加油喔！', 'zh-TW']]).then(() => this.next());
   }
   next() {
     this.tweens.add({ targets: this.panel, y: -400, duration: 350, ease: 'Back.in', onComplete: () => {
