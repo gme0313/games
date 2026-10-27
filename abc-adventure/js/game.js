@@ -235,7 +235,7 @@ function questionSpec(q) {
     const ws = shuffle([[q.en, q.zh, q.emoji], ...wordOthers(q)]);
     return {
       big: q.en, bigSize: Math.min(110, Math.floor(420 / (q.en.length * 0.6))), answer: q.emoji, optSize: 64, pic: true,
-      text: `哪一張圖片是 ${q.en}？`, options: ws.map(w => ({ value: w[2], label: w[2] }))
+      text: `${q.zh}\n哪一張圖片是 ${q.en}？`, options: ws.map(w => ({ value: w[2], label: w[2] }))
     };
   }
   if (q.type === 'picToWord') {
@@ -344,7 +344,7 @@ class WalkScene extends Phaser.Scene {
     const [from, to] = dir === 'toUpper' ? ['小寫', '大寫'] : ['大寫', '小寫'];
     say({
       case: [[`這是${from}的`, 'zh-TW'], [letter, 'en-US'], [`，哪一個是${to}的`, 'zh-TW'], [letter, 'en-US']],
-      wordToPic: [[en, 'en-US'], ['，是哪一張圖片呢？', 'zh-TW']],
+      wordToPic: [[en, 'en-US'], [`${zh}，是哪一張圖片呢？`, 'zh-TW']],
       picToWord: [[`這是${zh}，哪一個是它的英文呢？`, 'zh-TW']],
       word: [[en, 'en-US'], [zh + '，是哪個字母開頭呢？', 'zh-TW']]
     }[type]);
