@@ -3,8 +3,7 @@ const W = 540, H = 960, GROUND = 720, HERO_X = 150;
 const FONT = '"Chalkboard SE","Comic Sans MS","Noto Sans TC","Microsoft JhengHei",sans-serif';
 const INK = '#7a5c99';
 const COLORS = [0xff9db8, 0x8fd0f5, 0x8fe0b4, 0xffc46b, 0xc3a4f2, 0xffa98a];
-const POOL = 'ABCDE';      // 本關出題的字母範圍
-const ROUNDS = 5;          // 本關題數
+const ROUNDS = 10;         // 每關題數（無論對錯都會出完）
 const SPEED = 170;         // 小暴龍走路速度（像素/秒）
 const STOP_GAP = 590;      // 每題之間的距離（約 3.5 秒的路程）
 
@@ -320,15 +319,37 @@ class TitleScene extends Phaser.Scene {
   }
 }
 
+// ---- 出題：每關抽 ROUNDS 個不同字母，並盡量避開玩過的單字 ----
+const SEEN_KEY = 'abc-adventure-seen';
+function loadSeen() {
+  try { return new Set(JSON.parse(localStorage.getItem(SEEN_KEY)) || []); } catch (e) { return new Set(); }
+}
+function saveSeen(seen) {
+  try { localStorage.setItem(SEEN_KEY, JSON.stringify([...seen])); } catch (e) {}
+}
+function pickQuestions() {
+  const seen = loadSeen();
+  const questions = shuffle(Object.keys(WORDS)).slice(0, ROUNDS).map(letter => {
+    let fresh = WORDS[letter].filter(w => !seen.has(w[0]));
+    if (!fresh.length) { WORDS[letter].forEach(w => seen.delete(w[0])); fresh = WORDS[letter]; }   // 都玩過就重新輪一輪
+    const [en, zh, emoji] = pick(fresh);
+    seen.add(en);
+    return { letter, en, zh, emoji };
+  });
+  saveSeen(seen);
+  return questions;
+}
+
 // ============ 場景：走路與答題 ============
 // 相機固定不動，小暴龍留在原地踏步，背景與路標往左移動，營造往右走的效果
+// 每題 3 分：一次答對 3 分，答錯一次 2 分，答錯兩次就公布答案、得 1 分；共 ROUNDS 題，無論對錯都會進到下一題
 class WalkScene extends Phaser.Scene {
   constructor() { super('Walk'); }
   create() {
     this.stops = Array.from({ length: ROUNDS }, (_, i) => 500 + i * STOP_GAP);
     this.finishX = this.stops[ROUNDS - 1] + 650;
     this.dist = 0; this.round = 0; this.state = 'walk'; this.score = 0;
-    this.letters = shuffle([...POOL].filter(c => WORDS[c]));   // 每關每個字母只考一次
+    this.questions = pickQuestions();
 
     this.layers = addBackdrop(this);
 
@@ -342,8 +363,8 @@ class WalkScene extends Phaser.Scene {
     this.hero.play('walk');
     this.cameras.main.fadeIn(500, 255, 230, 245);
 
-    this.scoreText = txt(this, W - 80, 50, '⭐ 0', 36).setDepth(20);
-    button(this, 50, 50, 64, 64, 0xc3a4f2, '🏠', 30, () => { speechSynthesis.cancel(); this.scene.start('Title'); }).setDepth(20);
+    this.progress = txt(this, W - 85, 50, '', 34).setDepth(20);   // 只顯示第幾題，總分留到最後才公布
+    button(this, 50, 50, 64, 64, 0xc3a4f2, '🏠', 30, () => { sayId++; if (hasTTS) speechSynthesis.cancel(); this.scene.start('Title'); }).setDepth(20);
   }
   makeSign(flag) {
     const c = this.add.container(0, 0).setDepth(2);
@@ -368,45 +389,60 @@ class WalkScene extends Phaser.Scene {
     else if (this.round >= ROUNDS && this.dist >= this.finishX - 200) this.finish();
   }
   ask() {
-    this.state = 'ask';
+    this.state = 'ask'; this.wrong = 0; this.choices = [];
     this.hero.stop().setTexture('heroIdle');
-    const t = this.letters[this.round % this.letters.length];
-    const [en, zh, emoji] = pick(WORDS[t]);
-    const others = shuffle([...'ABCDEFGHIJKLMNOPQRSTUVWXYZ'].filter(c => c !== t)).slice(0, 2);
-    const letters = shuffle([t, ...others]);
+    const q = this.q = this.questions[this.round];
+    this.progress.setText(`${this.round + 1} / ${ROUNDS}`);
+    const others = shuffle(Object.keys(WORDS).filter(c => c !== q.letter)).slice(0, 2);
 
     const p = this.panel = this.add.container(W / 2, -400).setDepth(30);
     const bg = this.add.graphics();
     bg.fillStyle(0xb99be0, 0.3).fillRoundedRect(-250, -205, 500, 430, 40);
     bg.fillStyle(0xffffff, 0.94).fillRoundedRect(-250, -215, 500, 430, 40);
     p.add(bg);
-    p.add(this.add.text(0, -120, emoji, { fontSize: '110px' }).setOrigin(0.5));
-    this.question = txt(this, 0, -15, `${zh}（${en}）\n是哪個字母開頭？`, 32, INK, 440);
+    p.add(this.add.text(0, -120, q.emoji, { fontSize: '110px' }).setOrigin(0.5));
+    this.question = txt(this, 0, -15, `${q.zh}（${q.en}）\n是哪個字母開頭？`, 32, INK, 440);
     p.add(this.question);
-    letters.forEach((c, i) => {
-      p.add(button(this, (i - 1) * 155, 125, 125, 125, COLORS[(i + this.round) % COLORS.length], c, 66, btn => {
+    shuffle([q.letter, ...others]).forEach((c, i) => {
+      const btn = button(this, (i - 1) * 155, 125, 125, 125, COLORS[(i + this.round) % COLORS.length], c, 66, b => {
         if (this.state !== 'ask') return;
-        if (c === t) { this.state = 'cheer'; this.correct(t, en); }
-        else {
-          beep([200]);
-          this.tweens.add({ targets: btn, x: btn.x + 12, duration: 60, yoyo: true, repeat: 3 });
-          say([['再試試看喔', 'zh-TW']]);
-        }
-      }));
+        if (c === q.letter) { this.state = 'cheer'; this.correct(); }
+        else this.miss(b);
+      });
+      this.choices.push({ letter: c, btn });
+      p.add(btn);
     });
-    p.add(button(this, 195, -165, 70, 70, 0xffd96b, '🔊', 34, () => this.speakQuestion(en, zh)));
+    p.add(button(this, 195, -165, 70, 70, 0xffd96b, '🔊', 34, () => this.speakQuestion()));
     this.tweens.add({ targets: p, y: 340, duration: 450, ease: 'Back.out' });
-    this.speakQuestion(en, zh);
+    this.speakQuestion();
   }
-  speakQuestion(en, zh) { if (this.state === 'ask') say([[en, 'en-US'], [zh + '，是哪個字母開頭呢？', 'zh-TW']]); }
-  correct(t, en) {
-    this.score++; this.scoreText.setText('⭐ ' + this.score);
+  speakQuestion() {
+    if (this.state === 'ask') say([[this.q.en, 'en-US'], [this.q.zh + '，是哪個字母開頭呢？', 'zh-TW']]);
+  }
+  announce() { this.question.setText(`${this.q.letter} is for ${this.q.en}!`).setColor('#f06a9b').setFontSize(40); }
+  correct() {
+    const { letter, en } = this.q;
+    this.score += 3 - this.wrong;
     beep([523, 659, 784]); confetti(this);
     this.hero.setTexture('heroCheer');
     this.tweens.add({ targets: this.hero, y: GROUND - 70, duration: 250, yoyo: true, repeat: 1, ease: 'Sine.out' });
-    this.question.setText(`${t} is for ${en}!`).setColor('#f06a9b').setFontSize(40);
-    say([[`${t}, ${t}, ${en}!`, 'en-US'], ['Great job!', 'en-US'], [pick(PRAISE), 'zh-TW']])
-      .then(() => this.next());
+    this.announce();
+    say([[`${letter}, ${letter}, ${en}!`, 'en-US'], ['Great job!', 'en-US'], [pick(PRAISE), 'zh-TW']]).then(() => this.next());
+  }
+  miss(btn) {
+    this.wrong++;
+    beep([200]);
+    btn.last.disableInteractive();   // 點錯的選項變淡，不能再點
+    this.tweens.add({ targets: btn, x: btn.x + 12, duration: 60, yoyo: true, repeat: 3, onComplete: () => btn.setAlpha(0.3) });
+    if (this.wrong < 2) { say([['再試試看喔', 'zh-TW']]); return; }
+    // 錯兩次：公布答案，得 1 分，繼續往下一題
+    this.state = 'reveal';
+    this.score += 3 - this.wrong;
+    const { letter, en } = this.q;
+    const right = this.choices.find(c => c.letter === letter).btn;
+    this.tweens.add({ targets: right, scale: 1.2, duration: 250, yoyo: true, repeat: 2 });
+    this.announce();
+    say([[`${letter}, ${letter}, ${en}!`, 'en-US'], ['沒關係，下次再加油喔！', 'zh-TW']]).then(() => this.next());
   }
   next() {
     this.tweens.add({ targets: this.panel, y: -400, duration: 350, ease: 'Back.in', onComplete: () => {
@@ -417,22 +453,40 @@ class WalkScene extends Phaser.Scene {
   finish() {
     this.state = 'end'; this.hero.stop().setTexture('heroCheer');
     this.cameras.main.fadeOut(600, 255, 230, 245);
-    this.cameras.main.once('camerafadeoutcomplete', () => this.scene.start('End', { score: this.score }));
+    this.cameras.main.once('camerafadeoutcomplete', () => this.scene.start('End', { score: this.score, max: ROUNDS * 3 }));
   }
 }
 
-// ============ 場景：結束 ============
+// ============ 場景：結束（統計總分）============
 class EndScene extends Phaser.Scene {
   constructor() { super('End'); }
-  create(data) {
+  create({ score, max }) {
     addBackdrop(this);
-    this.add.sprite(W / 2, GROUND, 'heroCheer').setOrigin(0.5, 1).setScale(1.9);
-    txt(this, W / 2, 170, '太棒了！🎉', 72, '#ffffff').setStroke('#b99be0', 12);
-    txt(this, W / 2, 270, '⭐'.repeat(data.score), 56);
-    button(this, W / 2, 400, 340, 100, COLORS[1], '🔁 再玩一次', 44, () => this.scene.start('Walk'));
+    const rate = score / max;
+    const hero = this.add.sprite(W / 2, GROUND, 'heroCheer').setOrigin(0.5, 1).setScale(1.5);
+    // 慶祝動畫：蹦蹦跳跳、左右搖擺
+    this.tweens.add({ targets: hero, y: GROUND - 80, duration: 400, yoyo: true, repeat: -1, ease: 'Quad.out' });
+    this.tweens.add({ targets: hero, angle: { from: -7, to: 7 }, duration: 400, yoyo: true, repeat: -1, ease: 'Sine.inOut' });
+
+    const title = txt(this, W / 2, 75, rate >= 0.8 ? '太棒了！🎉' : rate >= 0.5 ? '好棒喔！🎉' : '好努力喔！🌟', 64, '#ffffff').setStroke('#b99be0', 12);
+    this.tweens.add({ targets: title, scale: 1.08, duration: 600, yoyo: true, repeat: -1, ease: 'Sine.inOut' });
+    txt(this, W / 2, 150, '總分', 38);
+    const num = txt(this, W / 2, 245, '0', 110, '#f06a9b').setStroke('#ffffff', 10);
+    txt(this, W / 2, 325, `/ ${max} 分`, 40);
+    this.tweens.addCounter({ from: 0, to: score, duration: 1400, onUpdate: tw => num.setText(String(Math.round(tw.getValue()))) });
+
+    const full = Math.max(1, Math.round(rate * 5));   // 5 顆星裡亮幾顆
+    for (let i = 0; i < 5; i++) {
+      const s = txt(this, W / 2 + (i - 2) * 76, 385, '⭐', 52).setAlpha(i < full ? 1 : 0.2).setScale(0);
+      this.tweens.add({ targets: s, scale: 1, duration: 350, delay: 1400 + i * 150, ease: 'Back.out' });
+    }
+
+    button(this, W / 2, 790, 320, 84, COLORS[1], '🔁 再玩一次', 40, () => { sayId++; this.scene.start('Walk'); });
+    button(this, W / 2, 890, 320, 84, COLORS[4], '🏠 回首頁', 40, () => { sayId++; this.scene.start('Title'); });
     this.cameras.main.fadeIn(500, 255, 230, 245);
     beep([523, 659, 784, 1046]); confetti(this);
-    say([['You did it!', 'en-US'], ['你完成了，太棒了！', 'zh-TW']]);
+    this.time.addEvent({ delay: 1800, loop: true, callback: () => confetti(this) });
+    say([['You did it!', 'en-US'], [`你得到 ${score} 分，真棒！`, 'zh-TW']]);
   }
 }
 
