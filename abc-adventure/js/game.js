@@ -4,7 +4,10 @@ const GROUND_H = H - GROUND + 6;   // 地面素材高度（look.js 的背景會�
 const FONT = '"Chalkboard SE","Comic Sans MS","Noto Sans TC","Microsoft JhengHei",sans-serif';
 const INK = '#7a5c99';
 const COLORS = [0xff9db8, 0x8fd0f5, 0x8fe0b4, 0xffc46b, 0xc3a4f2, 0xffa98a];
-const ROUNDS = 10;         // 每關題數（無論對錯都會出完）
+// 每關的題型分配（題數 = 總和，無論對錯都會出完）
+// word 看圖選字母、wordToPic 看單字選圖、picToWord 看圖選單字、toLower 看大寫選小寫、toUpper 看小寫選大寫
+const MIX = { word: 4, wordToPic: 2, picToWord: 1, toLower: 2, toUpper: 1 };
+const ROUNDS = Object.values(MIX).reduce((a, b) => a + b, 0);
 const SPEED = 170;         // 小暴龍走路速度（像素/秒）
 const STOP_GAP = 590;      // 每題之間的距離（約 3.5 秒的路程）
 
@@ -72,13 +75,14 @@ function txt(scene, x, y, s, size, color = INK, wrap = 0) {
   }).setOrigin(0.5);
 }
 // 按鈕：用獨立的透明矩形接收點擊，避免容器點擊範圍的問題
-function button(scene, x, y, w, h, color, label, size, cb) {
+function button(scene, x, y, w, h, color, label, size, cb, plain = false) {
   const c = scene.add.container(x, y);
   const g = scene.add.graphics();
   g.fillStyle(0xb99be0, .35).fillRoundedRect(-w / 2, -h / 2 + 7, w, h, 26);
   g.fillStyle(0xffffff).fillRoundedRect(-w / 2 - 4, -h / 2 - 4, w + 8, h + 8, 28);
   g.fillStyle(color).fillRoundedRect(-w / 2, -h / 2, w, h, 24);
-  const t = txt(scene, 0, 0, label, size, '#ffffff').setStroke('#9b7cc9', 6);
+  const t = txt(scene, 0, 0, label, size, '#ffffff');
+  if (!plain) t.setStroke('#9b7cc9', 6);   // 圖片（emoji）選項不加描邊
   const hit = scene.add.rectangle(0, 0, w + 16, h + 16, 0xffffff, 0.001).setInteractive({ useHandCursor: true });
   hit.on('pointerdown', () => cb(c));
   return c.add([g, t, hit]);
@@ -171,32 +175,83 @@ function loadSeen() {
 function saveSeen(seen) {
   try { localStorage.setItem(SEEN_KEY, JSON.stringify([...seen])); } catch (e) {}
 }
-// 兩種題型：word＝看圖選開頭字母；case＝看大寫字母選對應的小寫
-const CASE_QUESTIONS = 3;                         // 每關 ROUNDS 題裡有幾題大小寫配對
+// ---- 題型 ----
+// word＝看圖選開頭字母；wordToPic＝看英文單字選圖片；picToWord＝看圖片選英文單字
+// case＝大小寫配對（toLower：看大寫選小寫、toUpper：看小寫選大寫；小寫字形比較多變，所以題數較少）
+// 每關的題型分配見最上方的 MIX
 const ALPHABET = [...'ABCDEFGHIJKLMNOPQRSTUVWXYZ'];
 const CONFUSABLE = ['bdpq', 'nu', 'mw', 'gq'];    // 小寫長得像的字母，不放進同一題的選項
+const isCaseType = t => t === 'toLower' || t === 'toUpper';
 
 function pickQuestions() {
   const seen = loadSeen();
-  const wordLetters = shuffle(Object.keys(WORDS)).slice(0, ROUNDS - CASE_QUESTIONS);
-  const caseLetters = shuffle(ALPHABET.filter(c => !wordLetters.includes(c))).slice(0, CASE_QUESTIONS);
-  const wordQs = wordLetters.map(letter => {
+  const types = Object.entries(MIX).flatMap(([t, n]) => Array(n).fill(t));
+  const wordTypes = types.filter(t => !isCaseType(t));   // 這些題型都要用到單字
+  const caseTypes = types.filter(isCaseType);
+  const wordLetters = shuffle(Object.keys(WORDS)).slice(0, wordTypes.length);
+  const caseLetters = shuffle(ALPHABET.filter(c => !wordLetters.includes(c))).slice(0, caseTypes.length);
+  const wordQs = wordLetters.map((letter, i) => {
     let fresh = WORDS[letter].filter(w => !seen.has(w[0]));
     if (!fresh.length) { WORDS[letter].forEach(w => seen.delete(w[0])); fresh = WORDS[letter]; }   // 都玩過就重新輪一輪
     const [en, zh, emoji] = pick(fresh);
     seen.add(en);
-    return { type: 'word', letter, en, zh, emoji };
+    return { type: wordTypes[i], letter, en, zh, emoji };
   });
   saveSeen(seen);
-  const caseQs = caseLetters.map(letter => ({ type: 'case', letter }));
-  const [first, ...rest] = wordQs;                // 第 1 題固定是看圖題，其餘隨機穿插
-  return [first, ...shuffle([...rest, ...caseQs])];
+  const caseQs = caseLetters.map((letter, i) => ({ type: 'case', letter, dir: caseTypes[i] }));
+  const first = wordQs.find(q => q.type === 'word');   // 第 1 題固定是「看圖選字母」，其餘隨機穿插
+  return [first, ...shuffle([...wordQs.filter(q => q !== first), ...caseQs])];
 }
-// 大小寫題的干擾選項：兩個其他的小寫字母，避開和答案長得像的
-function lowerOthers(letter) {
+
+// 大小寫題的干擾選項：兩個其他字母（大寫或小寫依題目方向），避開小寫字形和題目長得像的
+// 例如題目是 b，選項就不會出現 D（小寫 d 和 b 太像）
+function caseOthers(letter, upper) {
   const ans = letter.toLowerCase();
   const twin = CONFUSABLE.find(g => g.includes(ans)) || '';
-  return shuffle(ALPHABET.map(c => c.toLowerCase()).filter(c => c !== ans && !twin.includes(c))).slice(0, 2);
+  const pool = ALPHABET.filter(c => c.toLowerCase() !== ans && !twin.includes(c.toLowerCase()));
+  return shuffle(pool).slice(0, 2).map(c => upper ? c : c.toLowerCase());
+}
+// 單字題的干擾項：首字母不同，而且不會和答案太像（例如 Boat 和 Ship，見 words.js 的 SIMILAR）
+const similar = (a, b) => SIMILAR.some(g => g.includes(a) && g.includes(b));
+function wordOthers(q) {
+  const all = Object.values(WORDS).flat();
+  return shuffle(all.filter(w => w[0][0].toUpperCase() !== q.letter && !similar(w[0], q.en))).slice(0, 2);
+}
+
+// 依題型整理出畫面與選項：big＝題目大字（或圖示）、options＝已洗牌的三個選項
+// pic＝選項是圖片、wide＝選項是英文單字（按鈕做寬一點、字依長度縮放）
+function questionSpec(q) {
+  const letters = vals => vals.map(v => ({ value: v, label: v }));
+  if (q.type === 'case') {
+    const toUpper = q.dir === 'toUpper', shown = toUpper ? q.letter.toLowerCase() : q.letter;   // q.letter 一律是大寫
+    const answer = toUpper ? q.letter : q.letter.toLowerCase();
+    return {
+      big: shown, bigSize: 130, answer, optSize: 66,
+      text: toUpper ? `這是小寫的 ${shown}\n哪一個是大寫的 ${q.letter}？` : `這是大寫的 ${shown}\n哪一個是小寫的 ${q.letter}？`,
+      options: letters(shuffle([answer, ...caseOthers(q.letter, toUpper)]))
+    };
+  }
+  if (q.type === 'wordToPic') {
+    const ws = shuffle([[q.en, q.zh, q.emoji], ...wordOthers(q)]);
+    return {
+      big: q.en, bigSize: Math.min(110, Math.floor(420 / (q.en.length * 0.6))), answer: q.emoji, optSize: 64, pic: true,
+      text: `哪一張圖片是 ${q.en}？`, options: ws.map(w => ({ value: w[2], label: w[2] }))
+    };
+  }
+  if (q.type === 'picToWord') {
+    const ws = shuffle([[q.en, q.zh, q.emoji], ...wordOthers(q)]);
+    const wrapLabel = s => s.includes(' ') && s.length > 8 ? s.replace(' ', '\n') : s;   // 長的詞組分兩行
+    const longest = Math.max(...ws.flatMap(w => wrapLabel(w[0]).split('\n').map(s => s.length)));
+    return {
+      big: q.emoji, bigIsEmoji: true, answer: q.en, wide: true, optSize: Math.max(20, Math.min(44, Math.floor(138 / (longest * 0.6)))),
+      text: `這是${q.zh}\n哪一個是它的英文？`, options: ws.map(w => ({ value: w[0], label: wrapLabel(w[0]) }))
+    };
+  }
+  const others = shuffle(Object.keys(WORDS).filter(c => c !== q.letter)).slice(0, 2);   // word：看圖選開頭字母
+  return {
+    big: q.emoji, bigIsEmoji: true, answer: q.letter, optSize: 66,
+    text: `${q.zh}（${q.en}）\n是哪個字母開頭？`, options: letters(shuffle([q.letter, ...others]))
+  };
 }
 
 // ============ 場景：走路與答題 ============
@@ -252,25 +307,26 @@ class WalkScene extends Phaser.Scene {
     this.hero.stop().setTexture(tex('heroIdle'));
     const q = this.q = this.questions[this.round];
     this.progress.setText(`第 ${this.round + 1} 題`);
-    const isCase = q.type === 'case';
-    this.answer = isCase ? q.letter.toLowerCase() : q.letter;
-    const others = isCase ? lowerOthers(q.letter) : shuffle(Object.keys(WORDS).filter(c => c !== q.letter)).slice(0, 2);
+    const spec = questionSpec(q);
+    this.answer = spec.answer;
 
     const p = this.panel = this.add.container(W / 2, -400).setDepth(30);
     const bg = this.add.graphics();
     bg.fillStyle(0xb99be0, 0.3).fillRoundedRect(-250, -205, 500, 430, 40);
     bg.fillStyle(0xffffff, 0.94).fillRoundedRect(-250, -215, 500, 430, 40);
     p.add(bg);
-    p.add(isCase ? txt(this, 0, -120, q.letter, 130, '#f06a9b') : this.add.text(0, -120, q.emoji, { fontSize: '110px' }).setOrigin(0.5));
-    this.question = txt(this, 0, -15, isCase ? `這是大寫的 ${q.letter}\n哪一個是小寫的 ${q.letter}？` : `${q.zh}（${q.en}）\n是哪個字母開頭？`, 32, INK, 440);
+    p.add(spec.bigIsEmoji ? this.add.text(0, -120, spec.big, { fontSize: '110px' }).setOrigin(0.5) : txt(this, 0, -120, spec.big, spec.bigSize, '#f06a9b'));
+    this.question = txt(this, 0, -15, spec.text, 32, INK, 440);
     p.add(this.question);
-    shuffle([this.answer, ...others]).forEach((c, i) => {
-      const btn = button(this, (i - 1) * 155, 125, 125, 125, COLORS[(i + this.round) % COLORS.length], c, 66, b => {
+    const bw = spec.wide ? 148 : 125, gap = spec.wide ? 160 : 155;
+    spec.options.forEach(({ value, label }, i) => {
+      const color = spec.pic ? 0xfff3d6 : COLORS[(i + this.round) % COLORS.length];
+      const btn = button(this, (i - 1) * gap, 125, bw, 125, color, label, spec.optSize, b => {
         if (this.state !== 'ask') return;
-        if (c === this.answer) { this.state = 'cheer'; this.correct(); }
+        if (value === this.answer) { this.state = 'cheer'; this.correct(); }
         else this.miss(b);
-      });
-      this.choices.push({ letter: c, btn });
+      }, spec.pic);
+      this.choices.push({ letter: value, btn });
       p.add(btn);
     });
     p.add(button(this, 195, -165, 70, 70, 0xffd96b, '🔊', 34, () => this.speakQuestion()));
@@ -284,21 +340,28 @@ class WalkScene extends Phaser.Scene {
   }
   speakQuestion() {
     if (this.state !== 'ask') return;
-    const { type, letter, en, zh } = this.q;
-    say(type === 'case'
-      ? [['這是大寫的', 'zh-TW'], [letter, 'en-US'], ['，哪一個是小寫的', 'zh-TW'], [letter, 'en-US']]
-      : [[en, 'en-US'], [zh + '，是哪個字母開頭呢？', 'zh-TW']]);
+    const { type, dir, letter, en, zh } = this.q;
+    const [from, to] = dir === 'toUpper' ? ['小寫', '大寫'] : ['大寫', '小寫'];
+    say({
+      case: [[`這是${from}的`, 'zh-TW'], [letter, 'en-US'], [`，哪一個是${to}的`, 'zh-TW'], [letter, 'en-US']],
+      wordToPic: [[en, 'en-US'], ['，是哪一張圖片呢？', 'zh-TW']],
+      picToWord: [[`這是${zh}，哪一個是它的英文呢？`, 'zh-TW']],
+      word: [[en, 'en-US'], [zh + '，是哪個字母開頭呢？', 'zh-TW']]
+    }[type]);
   }
   // 公布答案時唸的內容與畫面文字
   answerParts() {
     const { type, letter, en, zh } = this.q;
-    return type === 'case'
-      ? [['大寫的', 'zh-TW'], [letter, 'en-US'], ['，小寫的', 'zh-TW'], [letter, 'en-US']]
-      : [[`${letter}, ${letter}, ${en}!`, 'en-US'], [zh, 'zh-TW']];
+    if (type === 'case') return [['大寫的', 'zh-TW'], [letter, 'en-US'], ['，小寫的', 'zh-TW'], [letter, 'en-US']];
+    if (type === 'word') return [[`${letter}, ${letter}, ${en}!`, 'en-US'], [zh, 'zh-TW']];
+    return [[en, 'en-US'], [zh, 'zh-TW']];   // 單字與圖片配對：直接唸英文與中文
   }
   announce() {
     const { type, letter, en, zh } = this.q;
-    const text = type === 'case' ? `大寫 ${letter}　小寫 ${this.answer}` : `${letter} is for ${en}!\n${zh}`;
+    const text = type === 'case' ? `大寫 ${letter}　小寫 ${letter.toLowerCase()}`
+      : type === 'word' ? `${letter} is for ${en}!
+${zh}` : `${en}
+${zh}`;
     this.question.setText(text).setColor('#f06a9b').setFontSize(40);
   }
   correct() {
