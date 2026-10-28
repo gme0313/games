@@ -129,6 +129,17 @@ document.addEventListener('visibilitychange', () => {
   if (document.hidden) ac.suspend(); else if (music.started) ac.resume();
 });
 
+// 拉炮的「砰」：一小段高頻雜訊
+function pop() {
+  try {
+    const c = audioCtx(), n = c.sampleRate * .12, buf = c.createBuffer(1, n, c.sampleRate), d = buf.getChannelData(0);
+    for (let i = 0; i < n; i++) d[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / n, 3);
+    const src = c.createBufferSource(), hp = c.createBiquadFilter(), g = c.createGain();
+    hp.type = 'highpass'; hp.frequency.value = 900; g.gain.value = .35;
+    src.buffer = buf; src.connect(hp); hp.connect(g); g.connect(c.destination); src.start();
+  } catch (e) {}
+}
+
 // ---- 共用 UI ----
 function txt(scene, x, y, s, size, color = INK, wrap = 0) {
   return scene.add.text(x, y, s, {
@@ -153,6 +164,39 @@ function confetti(scene) {
   for (let i = 0; i < 16; i++) {
     const t = scene.add.text(Phaser.Math.Between(20, W - 20), -30, pick(['🎉', '⭐', '✨', '🎈', '💖']), { fontSize: '34px' }).setDepth(50);
     scene.tweens.add({ targets: t, y: H + 40, angle: 360, duration: Phaser.Math.Between(1300, 2200), delay: Phaser.Math.Between(0, 400), onComplete: () => t.destroy() });
+  }
+}
+
+// 答對的慶祝：畫面左右下角各「砰」一聲拉炮，噴出彩帶與紙花，主角周圍閃一圈星光
+const PAPER = [0xff9db8, 0x8fd0f5, 0xffd96b, 0x8fe0b4, 0xc3a4f2, 0xffa98a];
+function popper(scene, hero) {
+  pop();
+  const flash = scene.add.rectangle(W / 2, H / 2, W, H, 0xfff3b0, .45).setDepth(40);   // 一閃的暖光
+  scene.tweens.add({ targets: flash, alpha: 0, duration: 350, onComplete: () => flash.destroy() });
+  // 紙花與彩帶沿拋物線飛出，再慢慢飄落
+  const shoot = (x0, dir) => {
+    for (let i = 0; i < 26; i++) {
+      const streamer = i < 7, color = pick(PAPER);
+      const o = scene.add.rectangle(x0, H - 20, streamer ? 6 : Phaser.Math.Between(8, 14), streamer ? 46 : Phaser.Math.Between(8, 14), color).setDepth(45);
+      const vx = dir * Phaser.Math.Between(120, 420), vy = -Phaser.Math.Between(650, 1050), spin = Phaser.Math.Between(-540, 540);
+      const life = Phaser.Math.Between(1300, 2000);
+      scene.tweens.addCounter({
+        from: 0, to: 1, duration: life, ease: 'Linear',
+        onUpdate: tw => {
+          const t = tw.getValue() * life / 1000;
+          o.x = x0 + vx * t * .55; o.y = H - 20 + vy * t * .6 + 520 * t * t;   // 先往上衝再被重力拉下來
+          o.angle = spin * t; if (streamer) o.scaleX = 1 + Math.sin(t * 14) * .5;
+          o.alpha = Math.min(1, (1 - tw.getValue()) * 3);
+        },
+        onComplete: () => o.destroy()
+      });
+    }
+  };
+  shoot(20, 1); shoot(W - 20, -1);
+  // 主角身邊的小星星
+  for (let i = 0; i < 8; i++) {
+    const a = i / 8 * Math.PI * 2, s = scene.add.text(hero.x, hero.y - 80, '✨', { fontSize: '30px' }).setOrigin(.5).setDepth(46);
+    scene.tweens.add({ targets: s, x: hero.x + Math.cos(a) * 110, y: hero.y - 80 + Math.sin(a) * 90, alpha: 0, scale: 1.6, duration: 700, ease: 'Sine.out', onComplete: () => s.destroy() });
   }
 }
 
@@ -428,7 +472,7 @@ ${zh}`;
   }
   correct() {
     this.addScore(3 - this.wrong);
-    beep([523, 659, 784]); confetti(this);
+    beep([523, 659, 784]); popper(this, this.hero);
     this.hero.setTexture(tex('heroCheer'));
     this.tweens.add({ targets: this.hero, y: GROUND - 70, duration: 250, yoyo: true, repeat: 1, ease: 'Sine.out' });
     this.announce();

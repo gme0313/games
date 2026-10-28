@@ -99,6 +99,25 @@ function cheerArm(g, pal, x0, y0, x1, y1) {
 }
 
 // ---- 暴龍 ----
+// 臉：平常是圓眼睛＋微笑；歡呼時變成開心的瞇瞇眼＋張開的大笑嘴（含舌頭）
+function eye(g, x, y, r, cheer) {
+  if (cheer) {
+    g.lineStyle(3.5, 0x4a3a5e).beginPath().arc(x, y + r * .5, r * .85, Math.PI * 1.1, Math.PI * 1.9).strokePath();
+    return;
+  }
+  g.fillStyle(0xffffff).fillCircle(x, y, r);
+  g.fillStyle(0x4a3a5e).fillCircle(x + 3, y + 1, r * .62);
+  g.fillStyle(0xffffff).fillCircle(x + 5, y - 1, 2);
+}
+function smile(g, pal, x, y, r, cheer, a0 = .25) {
+  if (cheer) {
+    g.fillStyle(0xb5486b).beginPath().arc(x, y - 2, r + 1, 0, Math.PI).closePath().fillPath();
+    g.fillStyle(0xff9db8).fillEllipse(x, y + r - 3, r, r * .6);
+    return;
+  }
+  g.lineStyle(2.5, pal.smile).beginPath().arc(x, y, r, a0, Math.PI - a0).strokePath();
+}
+
 function drawTrex(g, pal, { a = 0, b = 0, bob = 0, tail = 0, cheer = false }) {
   const { body: GREEN, dark: DARK, belly: BELLY, spike: PINK } = pal, dy = bob;
 
@@ -117,11 +136,9 @@ function drawTrex(g, pal, { a = 0, b = 0, bob = 0, tail = 0, cheer = false }) {
   g.fillStyle(GREEN).fillCircle(108, 54 - dy, 34).fillEllipse(128, 62 - dy, 38, 28);            // 頭與嘴
   if (cheer) cheerArm(g, pal, 100, 94 - dy, 134, 80 - dy);                                     // 手：往前上方高高伸出
   g.fillStyle(0xff9db8, 0.7).fillCircle(112, 71 - dy, 6);                                       // 腮紅
-  g.fillStyle(0xffffff).fillCircle(114, 46 - dy, 9);                                            // 眼睛
-  g.fillStyle(0x4a3a5e).fillCircle(117, 47 - dy, 5.5);
-  g.fillStyle(0xffffff).fillCircle(119, 45 - dy, 2);
+  eye(g, 114, 46 - dy, 9, cheer);                                                               // 眼睛
   g.fillStyle(DARK).fillCircle(142, 56 - dy, 2);                                                // 鼻孔
-  g.lineStyle(2.5, pal.smile).beginPath().arc(129, 64 - dy, 9, 0.25, Math.PI - 0.25).strokePath(); // 微笑
+  smile(g, pal, 129, 64 - dy, 9, cheer);                                                        // 微笑
 }
 
 // ---- 三角龍：四隻腳、頸盾與三根角 ----
@@ -149,10 +166,8 @@ function drawTricera(g, pal, { a = 0, b = 0, bob = 0, tail = 0, cheer = false })
   g.fillStyle(HORN).fillTriangle(132, 60 - dy, 146, 32 - dy, 142, 64 - dy);                     // 另一根眉角
   g.fillTriangle(140, 72 - dy, 150, 56 - dy, 152, 76 - dy);                                     // 鼻角
   g.fillStyle(0xff9db8, 0.7).fillCircle(126, 90 - dy, 5);                                       // 腮紅
-  g.fillStyle(0xffffff).fillCircle(124, 70 - dy, 8);                                            // 眼睛
-  g.fillStyle(0x4a3a5e).fillCircle(127, 71 - dy, 5);
-  g.fillStyle(0xffffff).fillCircle(129, 69 - dy, 2);
-  g.lineStyle(2.5, pal.smile).beginPath().arc(143, 84 - dy, 8, 0.2, Math.PI - 0.2).strokePath(); // 微笑
+  eye(g, 124, 70 - dy, 8, cheer);                                                               // 眼睛
+  smile(g, pal, 143, 84 - dy, 8, cheer, .2);                                                    // 微笑
 }
 
 // ---- 棘龍：背上的大帆與長長的嘴巴 ----
@@ -179,11 +194,9 @@ function drawSpino(g, pal, { a = 0, b = 0, bob = 0, tail = 0, cheer = false }) {
   g.fillStyle(0xffffff);                                                                        // 小小的牙齒
   [118, 130, 142].forEach(x => g.fillTriangle(x - 3, 72 - dy, x + 3, 72 - dy, x, 78 - dy));
   g.fillStyle(0xff9db8, 0.7).fillCircle(108, 72 - dy, 5);                                       // 腮紅
-  g.fillStyle(0xffffff).fillCircle(104, 48 - dy, 8);                                            // 眼睛
-  g.fillStyle(0x4a3a5e).fillCircle(107, 49 - dy, 5);
-  g.fillStyle(0xffffff).fillCircle(109, 47 - dy, 2);
+  eye(g, 104, 48 - dy, 8, cheer);                                                               // 眼睛
   g.fillStyle(DARK).fillCircle(150, 58 - dy, 2);                                                // 鼻孔
-  g.lineStyle(2.5, pal.smile).beginPath().arc(128, 62 - dy, 9, 0.25, Math.PI - 0.25).strokePath();
+  smile(g, pal, 128, 62 - dy, 9, cheer);
 }
 
 // ---- 滄龍：海裡的長身體、鰭狀的手腳和尾鰭 ----
@@ -205,11 +218,9 @@ function drawMosa(g, pal, { a = 0, b = 0, bob = 0, tail = 0, cheer = false }) {
   g.fillStyle(0xffffff);                                                                        // 牙齒
   [128, 138, 148].forEach(x => g.fillTriangle(x - 3, 99 - dy, x + 3, 99 - dy, x, 105 - dy));
   g.fillStyle(0xff9db8, 0.7).fillCircle(120, 98 - dy, 5);                                       // 腮紅
-  g.fillStyle(0xffffff).fillCircle(116, 78 - dy, 8);                                            // 眼睛
-  g.fillStyle(0x4a3a5e).fillCircle(119, 79 - dy, 5);
-  g.fillStyle(0xffffff).fillCircle(121, 77 - dy, 2);
+  eye(g, 116, 78 - dy, 8, cheer);                                                               // 眼睛
   g.fillStyle(DARK).fillCircle(150, 86 - dy, 2);                                                // 鼻孔
-  g.lineStyle(2.5, pal.smile).beginPath().arc(138, 94 - dy, 8, 0.25, Math.PI - 0.25).strokePath();
+  smile(g, pal, 138, 94 - dy, 8, cheer);
 }
 
 function makeDinoFrame(scene, key, char, pal, opts = {}) {
