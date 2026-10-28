@@ -10,14 +10,15 @@ const WORDS = {
       ['Bed', '床', '🛏️'], ['Bell', '鈴鐺', '🔔'], ['Balloon', '氣球', '🎈'], ['Bicycle', '腳踏車', '🚲'],
       ['Boat', '小船', '🚤'], ['Bread', '麵包', '🍞'], ['Broccoli', '花椰菜', '🥦'], ['Basket', '籃子', '🧺'],
       ['Bone', '骨頭', '🦴'], ['Bridge', '橋', '🌉'], ['Box', '盒子', '📦'], ['Backpack', '書包', '🎒'],
-      ['Bat', '蝙蝠', '🦇'], ['Bag', '包包', '👜'], ['Boots', '靴子', '🥾']],
+      ['Bat', '蝙蝠', '🦇'], ['Bag', '包包', '👜'], ['Boots', '靴子', '🥾'],
+      ['Blue', '藍色', '🔵'], ['Black', '黑色', '⚫'], ['Brown', '咖啡色', '🟤']],
   C: [['Cat', '貓咪', '🐱'], ['Cake', '蛋糕', '🎂'], ['Car', '汽車', '🚗'], ['Cow', '乳牛', '🐮'],
       ['Candy', '糖果', '🍬'], ['Carrot', '紅蘿蔔', '🥕'], ['Cherry', '櫻桃', '🍒'], ['Chicken', '小雞', '🐔'],
       ['Cookie', '餅乾', '🍪'], ['Crab', '螃蟹', '🦀'], ['Crown', '皇冠', '👑'], ['Camel', '駱駝', '🐫'],
       ['Camera', '相機', '📷'], ['Candle', '蠟燭', '🕯️'], ['Cheese', '起司', '🧀'], ['Clock', '時鐘', '🕐'],
       ['Cloud', '雲', '☁️'], ['Coconut', '椰子', '🥥'], ['Corn', '玉米', '🌽'], ['Cactus', '仙人掌', '🌵'],
       ['Castle', '城堡', '🏰'], ['Computer', '電腦', '💻'], ['Cupcake', '杯子蛋糕', '🧁'], ['Cap', '棒球帽', '🧢'],
-      ['Cucumber', '小黃瓜', '🥒'], ['Caterpillar', '毛毛蟲', '🐛']],
+      ['Cucumber', '小黃瓜', '🥒'], ['Caterpillar', '毛毛蟲', '🐛'], ['Crayon', '蠟筆', '🖍️']],
   D: [['Dog', '小狗', '🐶'], ['Duck', '鴨子', '🦆'], ['Dinosaur', '恐龍', '🦖'], ['Dolphin', '海豚', '🐬'],
       ['Donut', '甜甜圈', '🍩'], ['Drum', '鼓', '🥁'], ['Door', '門', '🚪'], ['Dragon', '龍', '🐉'],
       ['Diamond', '鑽石', '💎'], ['Dice', '骰子', '🎲'], ['Deer', '小鹿', '🦌'], ['Dove', '鴿子', '🕊️'],
@@ -31,7 +32,7 @@ const WORDS = {
       ['Football', '橄欖球', '🏈'], ['Flamingo', '紅鶴', '🦩'], ['Fire truck', '消防車', '🚒'], ['Fireworks', '煙火', '🎆']],
   G: [['Grapes', '葡萄', '🍇'], ['Giraffe', '長頸鹿', '🦒'], ['Guitar', '吉他', '🎸'], ['Gift', '禮物', '🎁'],
       ['Ghost', '小幽靈', '👻'], ['Goat', '山羊', '🐐'], ['Gorilla', '大猩猩', '🦍'], ['Garden', '花園', '🏡'],
-      ['Glasses', '眼鏡', '👓'], ['Gloves', '手套', '🧤'], ['Garlic', '大蒜', '🧄'], ['Goldfish', '金魚', '🐠']],
+      ['Glasses', '眼鏡', '👓'], ['Gloves', '手套', '🧤'], ['Garlic', '大蒜', '🧄'], ['Goldfish', '金魚', '🐠'], ['Green', '綠色', '🟢']],
   H: [['Hat', '帽子', '🎩'], ['Horse', '馬', '🐴'], ['House', '房子', '🏠'], ['Heart', '愛心', '❤️'],
       ['Hamburger', '漢堡', '🍔'], ['Hand', '手', '✋'], ['Helicopter', '直升機', '🚁'], ['Hippo', '河馬', '🦛'],
       ['Honey', '蜂蜜', '🍯'], ['Hammer', '鐵鎚', '🔨'], ['Hedgehog', '刺蝟', '🦔'], ['Hot dog', '熱狗', '🌭'],
@@ -62,7 +63,8 @@ const WORDS = {
       ['Piano', '鋼琴', '🎹'], ['Pumpkin', '南瓜', '🎃'], ['Popcorn', '爆米花', '🍿'], ['Pretzel', '蝴蝶餅', '🥨'],
       ['Purse', '小錢包', '👛'], ['Parrot', '鸚鵡', '🦜'], ['Peacock', '孔雀', '🦚'], ['Pancakes', '鬆餅', '🥞'],
       ['Paw', '腳印', '🐾'], ['Phone', '手機', '📱'], ['Police car', '警車', '🚓'], ['Pin', '圖釘', '📌'],
-      ['Paint', '調色盤', '🎨'], ['Palm tree', '椰子樹', '🌴'], ['Pasta', '義大利麵', '🍝']],
+      ['Paint', '調色盤', '🎨'], ['Palm tree', '椰子樹', '🌴'], ['Pasta', '義大利麵', '🍝'],
+      ['Pen', '原子筆', '🖊️'], ['Paperclip', '迴紋針', '📎'], ['Purple', '紫色', '🟣']],
   Q: [['Queen', '皇后', '👸'], ['Question mark', '問號', '❓'], ['Quiet', '安靜', '🤫']],
   R: [['Rabbit', '兔子', '🐰'], ['Rainbow', '彩虹', '🌈'], ['Robot', '機器人', '🤖'], ['Rain', '下雨', '🌧️'],
       ['Ring', '戒指', '💍'], ['Rocket', '火箭', '🚀'], ['Rose', '玫瑰', '🌹'], ['Rooster', '公雞', '🐓'],
@@ -85,11 +87,30 @@ const WORDS = {
   V: [['Violin', '小提琴', '🎻'], ['Volcano', '火山', '🌋'], ['Van', '廂型車', '🚐'], ['Vase', '花瓶', '🏺'],
       ['Volleyball', '排球', '🏐'], ['Video game', '電動遊戲', '🎮']],
   W: [['Whale', '鯨魚', '🐳'], ['Watermelon', '西瓜', '🍉'], ['Watch', '手錶', '⌚'], ['Wolf', '大野狼', '🐺'],
-      ['Water', '水', '💧'], ['Wizard', '魔法師', '🧙'], ['Waffle', '鬆餅格', '🧇'], ['Wind', '風', '💨'],
+      ['White', '白色', '⚪'], ['Water', '水', '💧'], ['Wizard', '魔法師', '🧙'], ['Waffle', '鬆餅格', '🧇'], ['Wind', '風', '💨'],
       ['Web', '蜘蛛網', '🕸️'], ['Woman', '女士', '👩']],
-  Y: [['Yo-yo', '溜溜球', '🪀'], ['Yacht', '帆船', '⛵'], ['Yarn', '毛線球', '🧶']],
+  Y: [['Yo-yo', '溜溜球', '🪀'], ['Yacht', '帆船', '⛵'], ['Yarn', '毛線球', '🧶'], ['Yellow', '黃色', '🟡']],
   Z: [['Zebra', '斑馬', '🦓'], ['Zero', '零', '0️⃣']]
 };
+
+// 「看英文選圖片」只出這些常見、好認的單字：交通工具、蔬菜水果、日常用品、顏色、文具
+// 顏色題的干擾選項也只會是其他顏色（見 game.js 的 wordOthers）
+const COLOR_NAMES = ['Red', 'Blue', 'Yellow', 'Green', 'Purple', 'Black', 'White', 'Brown'];
+const PIC_WORDS = new Set([
+  ...COLOR_NAMES,
+  // 交通工具
+  'Airplane', 'Ambulance', 'Bicycle', 'Boat', 'Bus', 'Car', 'Fire truck', 'Helicopter', 'Motorcycle', 'Police car',
+  'Rocket', 'Ship', 'Taxi', 'Tractor', 'Train', 'Truck',
+  // 蔬菜水果
+  'Apple', 'Banana', 'Broccoli', 'Carrot', 'Cherry', 'Coconut', 'Corn', 'Cucumber', 'Grapes', 'Lemon', 'Melon',
+  'Mushroom', 'Onion', 'Orange', 'Peach', 'Pear', 'Pineapple', 'Pumpkin', 'Strawberry', 'Tomato', 'Watermelon',
+  // 日常用品
+  'Alarm clock', 'Backpack', 'Bag', 'Bed', 'Boots', 'Box', 'Camera', 'Candle', 'Clock', 'Computer', 'Door', 'Dress',
+  'Fork', 'Glasses', 'Gloves', 'Hammer', 'Hat', 'Headphones', 'Jacket', 'Key', 'Light bulb', 'Lock', 'Phone', 'Shoe',
+  'Socks', 'Sofa', 'Spoon', 'Television', 'Umbrella', 'Watch',
+  // 文具
+  'Book', 'Crayon', 'Notebook', 'Paperclip', 'Pen', 'Pencil', 'Ruler', 'Scissors'
+]);
 
 // 長得像、意思相近的單字群組：單字配圖題的干擾選項不會和答案出自同一組（例如 Boat 和 Ship）
 const SIMILAR = [
@@ -113,6 +134,8 @@ const SIMILAR = [
   ['Sun', 'Moon', 'Star', 'Earth'],
   ['Rain', 'Cloud', 'Lightning', 'Tornado', 'Wind', 'Snowflake', 'Water', 'Ocean'],
   ['Book', 'Notebook', 'Newspaper', 'Envelope'],
+  ['Pen', 'Pencil', 'Crayon', 'Paperclip', 'Ruler', 'Scissors'],
+  ['Apple', 'Peach', 'Pear', 'Cherry', 'Tomato', 'Strawberry', 'Orange', 'Lemon', 'Melon', 'Watermelon'],
   ['Guitar', 'Violin', 'Piano', 'Saxophone', 'Trumpet', 'Drum', 'Microphone', 'Music', 'Headphones'],
   ['Ant', 'Bee', 'Butterfly', 'Ladybug', 'Spider', 'Mosquito', 'Caterpillar', 'Snail', 'Web'],
   ['Bread', 'Sandwich', 'Hamburger', 'Hot dog', 'Pizza', 'Pasta', 'Noodles', 'Rice', 'Sushi', 'Dumpling', 'Soup', 'French fries'],

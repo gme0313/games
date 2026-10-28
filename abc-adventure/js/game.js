@@ -5,8 +5,8 @@ const FONT = '"Chalkboard SE","Comic Sans MS","Noto Sans TC","Microsoft JhengHei
 const INK = '#7a5c99';
 const COLORS = [0xff9db8, 0x8fd0f5, 0x8fe0b4, 0xffc46b, 0xc3a4f2, 0xffa98a];
 // 每關的題型分配（題數 = 總和，無論對錯都會出完）
-// word 看圖選字母、wordToPic 看單字選圖、picToWord 看圖選單字、toLower 看大寫選小寫、toUpper 看小寫選大寫
-const MIX = { word: 4, wordToPic: 2, picToWord: 1, toLower: 2, toUpper: 1 };
+// word 看圖選字母、wordToPic 聽英文選圖片、toLower 看大寫選小寫、toUpper 看小寫選大寫
+const MIX = { word: 5, wordToPic: 2, toLower: 2, toUpper: 1 };
 const ROUNDS = Object.values(MIX).reduce((a, b) => a + b, 0);
 const SPEED = 170;         // 小暴龍走路速度（像素/秒）
 const STOP_GAP = 590;      // 每題之間的距離（約 3.5 秒的路程）
@@ -55,9 +55,10 @@ async function say(parts) {
   }
 }
 let ac;
+const audioCtx = () => ac = ac || new (window.AudioContext || window.webkitAudioContext)();
 function beep(freqs) {
   try {
-    ac = ac || new (window.AudioContext || window.webkitAudioContext)();
+    audioCtx();
     freqs.forEach((f, i) => {
       const o = ac.createOscillator(), g = ac.createGain(), t = ac.currentTime + i * .12;
       o.frequency.value = f; o.type = 'triangle';
@@ -66,6 +67,67 @@ function beep(freqs) {
     });
   } catch (e) {}
 }
+
+// ---- 背景音樂：水晶風的輕柔鈴音（Web Audio 即時合成，不需要音檔）----
+// 在 C 大調和弦（C、Am、F、G）上隨機彈琶音，加上回音；音量刻意壓得比語音小很多
+const MUSIC_VOLUME = 0.045;
+const MUSIC_KEY = 'abc-adventure-music';
+const CHORDS = [[261.63, 329.63, 392, 523.25, 659.25], [220, 261.63, 329.63, 440, 523.25],
+                [174.61, 261.63, 349.23, 440, 523.25], [196, 293.66, 392, 493.88, 587.33]];
+const music = {
+  on: (() => { try { return localStorage.getItem(MUSIC_KEY) !== 'off'; } catch (e) { return true; } })(),
+  started: false, out: null, step: 0, next: 0, timer: 0,
+  start() {
+    if (this.started) { this.apply(); return; }
+    try {
+      const c = audioCtx();
+      this.out = c.createGain(); this.out.gain.value = 0;
+      const echo = c.createDelay(1), fb = c.createGain(), lp = c.createBiquadFilter();   // 回音：延遲＋回授＋低通，聽起來像空間殘響
+      echo.delayTime.value = .42; fb.gain.value = .45; lp.type = 'lowpass'; lp.frequency.value = 2400;
+      this.out.connect(c.destination); this.out.connect(echo); echo.connect(lp); lp.connect(fb); fb.connect(echo); lp.connect(c.destination);
+      this.started = true; this.next = c.currentTime + .3;
+      this.timer = setInterval(() => this.schedule(), 400);
+      this.apply();
+    } catch (e) {}
+  },
+  apply() {
+    if (!this.started) return;
+    const c = audioCtx(); if (c.state === 'suspended') c.resume();
+    this.out.gain.cancelScheduledValues(c.currentTime);
+    this.out.gain.setTargetAtTime(this.on ? MUSIC_VOLUME : 0, c.currentTime, .6);
+  },
+  toggle() {
+    this.on = !this.on;
+    try { localStorage.setItem(MUSIC_KEY, this.on ? 'on' : 'off'); } catch (e) {}
+    this.start();
+    return this.on;
+  },
+  schedule() {
+    const c = audioCtx();
+    while (this.next < c.currentTime + 1.2) {
+      const chord = CHORDS[Math.floor(this.step / 8) % CHORDS.length];
+      if (this.on && Math.random() < .8) this.bell(pick(chord) * (Math.random() < .25 ? 2 : 1), this.next);
+      if (this.step % 8 === 0) this.bell(chord[0] / 2, this.next, .7);   // 每個和弦的第一拍補一個低音
+      this.step++; this.next += .72;
+    }
+  },
+  bell(freq, t, vol = 1) {
+    const c = audioCtx();
+    [[1, 1, 3], [2, .35, 1.8], [3.01, .12, .9]].forEach(([m, a, len]) => {   // 基音＋泛音，泛音衰減得快，才有水晶的亮感
+      const o = c.createOscillator(), g = c.createGain();
+      o.type = 'sine'; o.frequency.value = freq * m;
+      g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(a * vol, t + .012);
+      g.gain.exponentialRampToValueAtTime(.0001, t + len);
+      o.connect(g); g.connect(this.out); o.start(t); o.stop(t + len + .05);
+    });
+  }
+};
+// 瀏覽器要求先有一次點擊才能發聲；切到別的分頁或 App 時暫停
+['click', 'touchend'].forEach(ev => document.addEventListener(ev, () => music.start(), { passive: true }));
+document.addEventListener('visibilitychange', () => {
+  if (!ac) return;
+  if (document.hidden) ac.suspend(); else if (music.started) ac.resume();
+});
 
 // ---- 共用 UI ----
 function txt(scene, x, y, s, size, color = INK, wrap = 0) {
@@ -110,6 +172,9 @@ class TitleScene extends Phaser.Scene {
       this.cameras.main.once('camerafadeoutcomplete', () => this.scene.start('Walk'));
     });
     button(this, W / 2, 480, 300, 80, COLORS[1], `🔄 換主角（${CHARS[look.char].name}）`, 30, () => this.scene.start('Select'));
+    const note = button(this, W - 50, 50, 64, 64, 0xc3a4f2, music.on ? '🎵' : '🔇', 30, () => {
+      note.list[1].setText(music.toggle() ? '🎵' : '🔇');
+    });
     this.cameras.main.fadeIn(400, 255, 230, 245);
   }
 }
@@ -176,7 +241,7 @@ function saveSeen(seen) {
   try { localStorage.setItem(SEEN_KEY, JSON.stringify([...seen])); } catch (e) {}
 }
 // ---- 題型 ----
-// word＝看圖選開頭字母；wordToPic＝看英文單字選圖片；picToWord＝看圖片選英文單字
+// word＝看圖選開頭字母；wordToPic＝聽英文語音選圖片（英文單字只是輔助，單字範圍見 words.js 的 PIC_WORDS）
 // case＝大小寫配對（toLower：看大寫選小寫、toUpper：看小寫選大寫；小寫字形比較多變，所以題數較少）
 // 每關的題型分配見最上方的 MIX
 const ALPHABET = [...'ABCDEFGHIJKLMNOPQRSTUVWXYZ'];
@@ -188,14 +253,19 @@ function pickQuestions() {
   const types = Object.entries(MIX).flatMap(([t, n]) => Array(n).fill(t));
   const wordTypes = types.filter(t => !isCaseType(t));   // 這些題型都要用到單字
   const caseTypes = types.filter(isCaseType);
-  const wordLetters = shuffle(Object.keys(WORDS)).slice(0, wordTypes.length);
-  const caseLetters = shuffle(ALPHABET.filter(c => !wordLetters.includes(c))).slice(0, caseTypes.length);
-  const wordQs = wordLetters.map((letter, i) => {
-    let fresh = WORDS[letter].filter(w => !seen.has(w[0]));
-    if (!fresh.length) { WORDS[letter].forEach(w => seen.delete(w[0])); fresh = WORDS[letter]; }   // 都玩過就重新輪一輪
+  // 單字配圖題只能用 PIC_WORDS 裡的單字，所以先替它們挑有這類單字的字母，其餘題型再從剩下的字母挑
+  const picTypes = wordTypes.filter(t => t === 'wordToPic'), otherTypes = wordTypes.filter(t => t !== 'wordToPic');
+  const picLetters = shuffle(Object.keys(WORDS).filter(l => WORDS[l].some(w => PIC_WORDS.has(w[0])))).slice(0, picTypes.length);
+  const otherLetters = shuffle(Object.keys(WORDS).filter(l => !picLetters.includes(l))).slice(0, otherTypes.length);
+  const slots = [...picTypes.map((type, i) => ({ type, letter: picLetters[i] })), ...otherTypes.map((type, i) => ({ type, letter: otherLetters[i] }))];
+  const caseLetters = shuffle(ALPHABET.filter(c => !slots.some(s => s.letter === c))).slice(0, caseTypes.length);
+  const wordQs = slots.map(({ type, letter }) => {
+    const pool = type === 'wordToPic' ? WORDS[letter].filter(w => PIC_WORDS.has(w[0])) : WORDS[letter];
+    let fresh = pool.filter(w => !seen.has(w[0]));
+    if (!fresh.length) { pool.forEach(w => seen.delete(w[0])); fresh = pool; }   // 都玩過就重新輪一輪
     const [en, zh, emoji] = pick(fresh);
     seen.add(en);
-    return { type: wordTypes[i], letter, en, zh, emoji };
+    return { type, letter, en, zh, emoji };
   });
   saveSeen(seen);
   const caseQs = caseLetters.map((letter, i) => ({ type: 'case', letter, dir: caseTypes[i] }));
@@ -213,13 +283,15 @@ function caseOthers(letter, upper) {
 }
 // 單字題的干擾項：首字母不同，而且不會和答案太像（例如 Boat 和 Ship，見 words.js 的 SIMILAR）
 const similar = (a, b) => SIMILAR.some(g => g.includes(a) && g.includes(b));
+// 顏色題的干擾項只會是其他顏色，其他題則不出現顏色
 function wordOthers(q) {
-  const all = Object.values(WORDS).flat();
+  const isColor = COLOR_NAMES.includes(q.en);
+  const all = Object.values(WORDS).flat().filter(w => PIC_WORDS.has(w[0]) && COLOR_NAMES.includes(w[0]) === isColor);
   return shuffle(all.filter(w => w[0][0].toUpperCase() !== q.letter && !similar(w[0], q.en))).slice(0, 2);
 }
 
 // 依題型整理出畫面與選項：big＝題目大字（或圖示）、options＝已洗牌的三個選項
-// pic＝選項是圖片、wide＝選項是英文單字（按鈕做寬一點、字依長度縮放）
+// pic＝選項是圖片
 function questionSpec(q) {
   const letters = vals => vals.map(v => ({ value: v, label: v }));
   if (q.type === 'case') {
@@ -236,15 +308,6 @@ function questionSpec(q) {
     return {
       big: q.en, bigSize: Math.min(110, Math.floor(420 / (q.en.length * 0.6))), answer: q.emoji, optSize: 64, pic: true,
       text: `${q.zh}\n哪一張圖片是 ${q.en}？`, options: ws.map(w => ({ value: w[2], label: w[2] }))
-    };
-  }
-  if (q.type === 'picToWord') {
-    const ws = shuffle([[q.en, q.zh, q.emoji], ...wordOthers(q)]);
-    const wrapLabel = s => s.includes(' ') && s.length > 8 ? s.replace(' ', '\n') : s;   // 長的詞組分兩行
-    const longest = Math.max(...ws.flatMap(w => wrapLabel(w[0]).split('\n').map(s => s.length)));
-    return {
-      big: q.emoji, bigIsEmoji: true, answer: q.en, wide: true, optSize: Math.max(20, Math.min(44, Math.floor(138 / (longest * 0.6)))),
-      text: `這是${q.zh}\n哪一個是它的英文？`, options: ws.map(w => ({ value: w[0], label: wrapLabel(w[0]) }))
     };
   }
   const others = shuffle(Object.keys(WORDS).filter(c => c !== q.letter)).slice(0, 2);   // word：看圖選開頭字母
@@ -318,7 +381,7 @@ class WalkScene extends Phaser.Scene {
     p.add(spec.bigIsEmoji ? this.add.text(0, -120, spec.big, { fontSize: '110px' }).setOrigin(0.5) : txt(this, 0, -120, spec.big, spec.bigSize, '#f06a9b'));
     this.question = txt(this, 0, -15, spec.text, 32, INK, 440);
     p.add(this.question);
-    const bw = spec.wide ? 148 : 125, gap = spec.wide ? 160 : 155;
+    const bw = 125, gap = 155;
     spec.options.forEach(({ value, label }, i) => {
       const color = spec.pic ? 0xfff3d6 : COLORS[(i + this.round) % COLORS.length];
       const btn = button(this, (i - 1) * gap, 125, bw, 125, color, label, spec.optSize, b => {
@@ -344,8 +407,7 @@ class WalkScene extends Phaser.Scene {
     const [from, to] = dir === 'toUpper' ? ['小寫', '大寫'] : ['大寫', '小寫'];
     say({
       case: [[`這是${from}的`, 'zh-TW'], [letter, 'en-US'], [`，哪一個是${to}的`, 'zh-TW'], [letter, 'en-US']],
-      wordToPic: [[en, 'en-US'], [`${zh}，是哪一張圖片呢？`, 'zh-TW']],
-      picToWord: [[`這是${zh}，哪一個是它的英文呢？`, 'zh-TW']],
+      wordToPic: [[en, 'en-US'], [en, 'en-US']],   // 純英文語音，聽了選圖；中文只留在畫面上輔助
       word: [[en, 'en-US'], [zh + '，是哪個字母開頭呢？', 'zh-TW']]
     }[type]);
   }
