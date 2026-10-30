@@ -5,8 +5,9 @@ const FONT = '"Chalkboard SE","Comic Sans MS","Noto Sans TC","Microsoft JhengHei
 const INK = '#7a5c99';
 const COLORS = [0xff9db8, 0x8fd0f5, 0x8fe0b4, 0xffc46b, 0xc3a4f2, 0xffa98a];
 // 每關的題型分配（題數 = 總和，無論對錯都會出完）
-// word 看圖選字母、wordToPic 聽英文選圖片、toLower 看大寫選小寫、toUpper 看小寫選大寫
-const MIX = { word: 5, wordToPic: 2, toLower: 2, toUpper: 1 };
+// word 看圖選字母、wordToPic 聽英文選圖片、bubble 聽英文戳泡泡、toLower 看大寫選小寫、toUpper 看小寫選大寫、
+// dragLower 把大寫拖到小寫、dragUpper 把小寫拖到大寫
+const MIX = { word: 2, wordToPic: 2, bubble: 2, toLower: 1, toUpper: 1, dragLower: 1, dragUpper: 1 };
 const ROUNDS = Object.values(MIX).reduce((a, b) => a + b, 0);
 const SPEED = 170;         // 小暴龍走路速度（像素/秒）
 const STOP_GAP = 590;      // 每題之間的距離（約 3.5 秒的路程）
@@ -15,7 +16,8 @@ const pick = a => a[Math.floor(Math.random() * a.length)];
 const shuffle = a => a.map(x => [Math.random(), x]).sort((p, q) => p[0] - q[0]).map(p => p[1]);
 
 // ---- 語音與音效 ----
-const PRAISE = ['你好棒！', '答對了！', '好厲害！', '你好聰明！', '太棒了！'];
+const PRAISE = ['你好棒！', '答對了！', '好厲害！', '你好聰明！', '太棒了！',
+  '真聰明！', '好棒喔！', '你真棒！', '好聰明喔！', '答對囉！', '讚讚讚！', '好優秀！', '漂亮！', '太厲害了！'];
 const hasTTS = 'speechSynthesis' in window;
 if (hasTTS) speechSynthesis.getVoices();   // 先觸發語音清單載入（Chrome 是非同步的）
 
@@ -200,6 +202,18 @@ function popper(scene, hero) {
   }
 }
 
+// 隊伍站在畫面下方的地面上，最多同時站 6 隻
+const PANEL_Y = 340;   // 題目面板停下來的高度
+const TEAM_MAX = 6, TEAM_Y = GROUND + 125, TEAM_X = i => 60 + i * 70;
+
+// 點到東西時冒出的小星星
+function sparkle(scene, x, y, n = 6) {
+  for (let i = 0; i < n; i++) {
+    const a = i / n * Math.PI * 2, s = scene.add.text(x, y, '✨', { fontSize: '26px' }).setOrigin(.5).setDepth(46);
+    scene.tweens.add({ targets: s, x: x + Math.cos(a) * 70, y: y + Math.sin(a) * 70, alpha: 0, scale: 1.4, duration: 550, ease: 'Sine.out', onComplete: () => s.destroy() });
+  }
+}
+
 // ============ 場景：標題 ============
 class TitleScene extends Phaser.Scene {
   constructor() { super('Title'); }
@@ -208,14 +222,16 @@ class TitleScene extends Phaser.Scene {
     ensureLook(this);
     addBackdrop(this);
     txt(this, W / 2, 190, 'ABC 冒險', 76, '#ffffff').setStroke('#b99be0', 12);
-    const hero = this.add.sprite(W / 2, GROUND, tex('heroIdle')).setOrigin(0.5, 1).setScale(1.9);
-    this.tweens.add({ targets: hero, scaleY: 1.96, duration: 700, yoyo: true, repeat: -1, ease: 'Sine.inOut' });
-    button(this, W / 2, 360, 300, 100, COLORS[0], '▶ 開始', 52, () => {
-      say([["Let's go!", 'en-US']]);        // 第一次點擊會解鎖語音
+    const hero = this.add.sprite(W / 2, GROUND + 20, tex('heroIdle')).setOrigin(0.5, 1).setScale(1.7);
+    this.tweens.add({ targets: hero, scaleY: 1.75, duration: 700, yoyo: true, repeat: -1, ease: 'Sine.inOut' });
+    const go = (scene, hello) => () => {
+      say([[hello, 'en-US']]);        // 第一次點擊會解鎖語音
       this.cameras.main.fadeOut(400, 255, 230, 245);
-      this.cameras.main.once('camerafadeoutcomplete', () => this.scene.start('Walk'));
-    });
-    button(this, W / 2, 480, 300, 80, COLORS[1], `🔄 換主角（${CHARS[look.char].name}）`, 30, () => this.scene.start('Select'));
+      this.cameras.main.once('camerafadeoutcomplete', () => this.scene.start(scene));
+    };
+    button(this, W / 2, 310, 380, 92, COLORS[0], '🦖 冒險之旅', 46, go('Walk', "Let's go!"));
+    button(this, W / 2, 420, 380, 92, COLORS[3], '🍎 餵恐龍', 46, go('Feed', "I'm hungry!"));
+    button(this, W / 2, 520, 300, 66, COLORS[1], `🔄 換主角（${CHARS[look.char].name}）`, 28, () => this.scene.start('Select'));
     const note = button(this, W - 50, 50, 64, 64, 0xc3a4f2, music.on ? '🎵' : '🔇', 30, () => {
       note.list[1].setText(music.toggle() ? '🎵' : '🔇');
     });
@@ -224,30 +240,32 @@ class TitleScene extends Phaser.Scene {
 }
 
 // ============ 場景：選擇主角 ============
-// 2x2 的卡片，點一下就選定（會記住），按「好了」回標題
+// 2 欄 4 列的卡片（共 8 隻），點一下就選定（會記住），按「好了」回標題
+const CARD_W = 230, CARD_H = 180;
+const cardCenter = i => [145 + (i % 2) * 250, 205 + Math.floor(i / 2) * 192];
 class SelectScene extends Phaser.Scene {
   constructor() { super('Select'); }
   create() {
     const ids = Object.keys(CHARS);
     ids.forEach(id => ensureChar(this, id));
     addBackdrop(this);
-    txt(this, W / 2, 100, '選擇主角', 60, '#ffffff').setStroke('#b99be0', 12);
+    txt(this, W / 2, 62, '選擇主角', 52, '#ffffff').setStroke('#b99be0', 10);
 
     this.frames = this.add.graphics();
     this.sprites = {};
     ids.forEach((id, i) => {
-      const cx = 145 + (i % 2) * 250, cy = 320 + Math.floor(i / 2) * 270;
-      this.sprites[id] = this.add.sprite(cx, cy + 30, tex('heroIdle', id)).setOrigin(0.5, 1).setScale(0.95);
-      txt(this, cx, cy + 72, CHARS[id].name, 34);
-      txt(this, cx, cy + 102, CHARS[id].en, 18, '#a58bc7');
-      this.add.rectangle(cx, cy, 220, 240, 0xffffff, 0.001).setInteractive({ useHandCursor: true })
+      const [cx, cy] = cardCenter(i);
+      this.sprites[id] = this.add.sprite(cx, cy + 4, tex('heroIdle', id)).setOrigin(0.5, 1).setScale(0.6);
+      txt(this, cx, cy + 34, CHARS[id].name, 28);
+      txt(this, cx, cy + 62, CHARS[id].en, 15, '#a58bc7');
+      this.add.rectangle(cx, cy, CARD_W, CARD_H, 0xffffff, 0.001).setInteractive({ useHandCursor: true })
         .on('pointerdown', () => this.choose(id));
     });
-    this.centers = ids.map((id, i) => [145 + (i % 2) * 250, 320 + Math.floor(i / 2) * 270]);
+    this.centers = ids.map((id, i) => cardCenter(i));
     this.ids = ids;
     this.drawFrames();
 
-    button(this, W / 2, 800, 300, 90, COLORS[2], '✔ 好了', 44, () => {
+    button(this, W / 2, 910, 260, 70, COLORS[2], '✔ 好了', 38, () => {
       sayId++;
       this.scene.start('Title', { keep: true });
     });
@@ -257,12 +275,13 @@ class SelectScene extends Phaser.Scene {
     const g = this.frames.clear();
     this.ids.forEach((id, i) => {
       const [cx, cy] = this.centers[i], on = id === look.char;
-      g.fillStyle(0xb99be0, 0.25).fillRoundedRect(cx - 110, cy - 114, 220, 240, 30);
-      g.fillStyle(on ? 0xfff6c8 : 0xffffff, on ? 0.95 : 0.75).fillRoundedRect(cx - 110, cy - 120, 220, 240, 30);
-      g.lineStyle(on ? 8 : 3, on ? 0xff9db8 : 0xd4c1f5).strokeRoundedRect(cx - 110, cy - 120, 220, 240, 30);
+      const x = cx - CARD_W / 2, y = cy - CARD_H / 2;
+      g.fillStyle(0xb99be0, 0.25).fillRoundedRect(x, y + 5, CARD_W, CARD_H, 26);
+      g.fillStyle(on ? 0xfff6c8 : 0xffffff, on ? 0.95 : 0.75).fillRoundedRect(x, y, CARD_W, CARD_H, 26);
+      g.lineStyle(on ? 7 : 3, on ? 0xff9db8 : 0xd4c1f5).strokeRoundedRect(x, y, CARD_W, CARD_H, 26);
       if (on) {
-        g.fillStyle(0xff9db8).fillCircle(cx + 96, cy - 106, 20);
-        g.lineStyle(5, 0xffffff).beginPath().moveTo(cx + 87, cy - 106).lineTo(cx + 94, cy - 98).lineTo(cx + 106, cy - 115).strokePath();
+        g.fillStyle(0xff9db8).fillCircle(x + CARD_W - 16, y + 16, 16);
+        g.lineStyle(4, 0xffffff).beginPath().moveTo(x + CARD_W - 23, y + 16).lineTo(x + CARD_W - 17, y + 23).lineTo(x + CARD_W - 8, y + 9).strokePath();
       }
     });
   }
@@ -285,12 +304,13 @@ function saveSeen(seen) {
   try { localStorage.setItem(SEEN_KEY, JSON.stringify([...seen])); } catch (e) {}
 }
 // ---- 題型 ----
-// word＝看圖選開頭字母；wordToPic＝聽英文語音選圖片（英文單字只是輔助，單字範圍見 words.js 的 PIC_WORDS）
-// case＝大小寫配對（toLower：看大寫選小寫、toUpper：看小寫選大寫；小寫字形比較多變，所以題數較少）
+// word＝看圖選開頭字母；wordToPic／bubble＝聽英文語音選圖片（bubble 是選項飄成泡泡、用戳的；英文單字只是輔助，單字範圍見 words.js 的 PIC_WORDS）
+// case／drag＝大小寫配對（case 用點選、drag 把字母卡拖到對的位置；toLower：大寫配小寫、toUpper：小寫配大寫）
 // 每關的題型分配見最上方的 MIX
 const ALPHABET = [...'ABCDEFGHIJKLMNOPQRSTUVWXYZ'];
 const CONFUSABLE = ['bdpq', 'nu', 'mw', 'gq'];    // 小寫長得像的字母，不放進同一題的選項
-const isCaseType = t => t === 'toLower' || t === 'toUpper';
+const isCaseType = t => ['toLower', 'toUpper', 'dragLower', 'dragUpper'].includes(t);
+const isPicType = t => t === 'wordToPic' || t === 'bubble';   // 這兩種都要用 PIC_WORDS 的單字
 
 function pickQuestions() {
   const seen = loadSeen();
@@ -298,13 +318,13 @@ function pickQuestions() {
   const wordTypes = types.filter(t => !isCaseType(t));   // 這些題型都要用到單字
   const caseTypes = types.filter(isCaseType);
   // 單字配圖題只能用 PIC_WORDS 裡的單字，所以先替它們挑有這類單字的字母，其餘題型再從剩下的字母挑
-  const picTypes = wordTypes.filter(t => t === 'wordToPic'), otherTypes = wordTypes.filter(t => t !== 'wordToPic');
+  const picTypes = wordTypes.filter(isPicType), otherTypes = wordTypes.filter(t => !isPicType(t));
   const picLetters = shuffle(Object.keys(WORDS).filter(l => WORDS[l].some(w => PIC_WORDS.has(w[0])))).slice(0, picTypes.length);
   const otherLetters = shuffle(Object.keys(WORDS).filter(l => !picLetters.includes(l))).slice(0, otherTypes.length);
   const slots = [...picTypes.map((type, i) => ({ type, letter: picLetters[i] })), ...otherTypes.map((type, i) => ({ type, letter: otherLetters[i] }))];
   const caseLetters = shuffle(ALPHABET.filter(c => !slots.some(s => s.letter === c))).slice(0, caseTypes.length);
   const wordQs = slots.map(({ type, letter }) => {
-    const pool = type === 'wordToPic' ? WORDS[letter].filter(w => PIC_WORDS.has(w[0])) : WORDS[letter];
+    const pool = isPicType(type) ? WORDS[letter].filter(w => PIC_WORDS.has(w[0])) : WORDS[letter];
     let fresh = pool.filter(w => !seen.has(w[0]));
     if (!fresh.length) { pool.forEach(w => seen.delete(w[0])); fresh = pool; }   // 都玩過就重新輪一輪
     const [en, zh, emoji] = pick(fresh);
@@ -312,7 +332,9 @@ function pickQuestions() {
     return { type, letter, en, zh, emoji };
   });
   saveSeen(seen);
-  const caseQs = caseLetters.map((letter, i) => ({ type: 'case', letter, dir: caseTypes[i] }));
+  const caseQs = caseLetters.map((letter, i) => ({
+    type: caseTypes[i].startsWith('drag') ? 'drag' : 'case', letter, dir: caseTypes[i].endsWith('Upper') ? 'toUpper' : 'toLower'
+  }));
   const first = wordQs.find(q => q.type === 'word');   // 第 1 題固定是「看圖選字母」，其餘隨機穿插
   return [first, ...shuffle([...wordQs.filter(q => q !== first), ...caseQs])];
 }
@@ -338,6 +360,15 @@ function wordOthers(q) {
 // pic＝選項是圖片
 function questionSpec(q) {
   const letters = vals => vals.map(v => ({ value: v, label: v }));
+  if (q.type === 'drag') {   // 把字母卡拖到對的位置：big 是字母卡上的字
+    const toUpper = q.dir === 'toUpper', shown = toUpper ? q.letter.toLowerCase() : q.letter;
+    const answer = toUpper ? q.letter : q.letter.toLowerCase();
+    return {
+      drag: true, big: shown, answer, optSize: 62,
+      text: `把這個字母\n拖到${toUpper ? '大寫' : '小寫'}的 ${q.letter}`,
+      options: letters(shuffle([answer, ...caseOthers(q.letter, toUpper)]))
+    };
+  }
   if (q.type === 'case') {
     const toUpper = q.dir === 'toUpper', shown = toUpper ? q.letter.toLowerCase() : q.letter;   // q.letter 一律是大寫
     const answer = toUpper ? q.letter : q.letter.toLowerCase();
@@ -347,11 +378,11 @@ function questionSpec(q) {
       options: letters(shuffle([answer, ...caseOthers(q.letter, toUpper)]))
     };
   }
-  if (q.type === 'wordToPic') {
+  if (isPicType(q.type)) {
     const ws = shuffle([[q.en, q.zh, q.emoji], ...wordOthers(q)]);
     return {
-      big: q.en, bigSize: Math.min(110, Math.floor(420 / (q.en.length * 0.6))), answer: q.emoji, optSize: 64, pic: true,
-      text: `${q.zh}\n哪一張圖片是 ${q.en}？`, options: ws.map(w => ({ value: w[2], label: w[2] }))
+      big: q.en, bigSize: Math.min(110, Math.floor(420 / (q.en.length * 0.6))), answer: q.emoji, optSize: 64, pic: true, bubble: q.type === 'bubble',
+      text: q.type === 'bubble' ? `${q.zh}\n戳一戳 ${q.en} 的泡泡！` : `${q.zh}\n哪一張圖片是 ${q.en}？`, options: ws.map(w => ({ value: w[2], label: w[2] }))
     };
   }
   const others = shuffle(Object.keys(WORDS).filter(c => c !== q.letter)).slice(0, 2);   // word：看圖選開頭字母
@@ -360,6 +391,15 @@ function questionSpec(q) {
     text: `${q.zh}（${q.en}）\n是哪個字母開頭？`, options: letters(shuffle([q.letter, ...others]))
   };
 }
+
+// 路上的小事件：依目前的地形隨機冒出小東西，點一下會有反應（不影響答題與分數）
+// ground＝待在地上隨地面移動，點了會跳一下；fly＝自己飛過，點了會飛走；float＝慢慢飄過的氣球
+const CRITTERS = {
+  meadow: [['🍄', 'ground'], ['🌼', 'ground'], ['🐞', 'ground'], ['🦋', 'fly'], ['🎈', 'float']],
+  beach: [['🦀', 'ground'], ['🐚', 'ground'], ['🦋', 'fly'], ['🐦', 'fly'], ['🎈', 'float']],
+  snow: [['🐧', 'ground'], ['🦌', 'ground'], ['❄️', 'fly'], ['🎈', 'float']],
+  volcano: [['🦎', 'ground'], ['💎', 'ground'], ['🔥', 'ground'], ['🦇', 'fly'], ['🎈', 'float']]
+};
 
 // ============ 場景：走路與答題 ============
 // 相機固定不動，小暴龍留在原地踏步，背景與路標往左移動，營造往右走的效果
@@ -370,21 +410,32 @@ class WalkScene extends Phaser.Scene {
     this.stops = Array.from({ length: ROUNDS }, (_, i) => 500 + i * STOP_GAP);
     this.finishX = this.stops[ROUNDS - 1] + 650;
     this.dist = 0; this.round = 0; this.state = 'walk'; this.score = 0;
+    this.critters = []; this.nextCritter = 0; this.nowT = 0;
+    this.streak = 0;                                        // 連續「一次就答對」的題數
+    this.friends = []; this.team = []; this.worldFriends = []; this.waiting = null;   // 加入隊伍的朋友、隊伍中的圖、路上的朋友、正在等你的朋友
     this.questions = pickQuestions();
 
     ensureLook(this);
     this.layers = addBackdrop(this);
+    // 地形：第 1～3 題在草原，第 4 題起換成海邊／火山／雪地其中一個，第 7 題起再換另一個
+    this.terrains = ['meadow', ...shuffle(['beach', 'volcano', 'snow']).slice(0, 2)];
+    this.terrains.forEach(t => ensureTerrain(this, t));
+    this.scrollers = [['mountains', 0.2], ['hills', 0.4], ['trees', 0.75], ['ground', 1]].map(([k, f]) => ({ sp: this.layers[k], f }));
 
     this.signs = this.stops.map(x => ({ x: x + 150, obj: this.makeSign(false) }));
     this.signs.push({ x: this.finishX, obj: this.makeSign(true) });
 
     this.hero = this.add.sprite(HERO_X, GROUND, tex('heroIdle')).setOrigin(0.5, 1).setDepth(5);
     this.hero.play(walkKey());
+    this.crown = this.add.text(0, 0, '👑', { fontSize: '40px' }).setOrigin(.5, 1).setAngle(-10).setDepth(7).setVisible(false);
+    this.rainbow = this.makeRainbow().setVisible(false);
     this.cameras.main.fadeIn(500, 255, 230, 245);
 
     this.scoreText = txt(this, W / 2, 50, '', 40).setStroke('#ffffff', 8).setDepth(20);   // 上方置中：⭐ 目前得分/滿分
     this.addScore(0);
     this.progress = txt(this, W - 70, 50, '', 30).setStroke('#ffffff', 7).setDepth(20);
+    this.teamText = txt(this, W / 2, 98, '', 30).setStroke('#ffffff', 7).setDepth(20);   // 隊伍人數
+    this.spawnFriend();
     button(this, 50, 50, 64, 64, 0xc3a4f2, '🏠', 30, () => { sayId++; if (hasTTS) speechSynthesis.cancel(); this.scene.start('Title'); }).setDepth(20);
   }
   makeSign(flag) {
@@ -400,14 +451,139 @@ class WalkScene extends Phaser.Scene {
     if (this.state === 'walk') this.dist += SPEED * dt / 1000;
     const L = this.layers;
     L.clouds.tilePositionX = this.dist * 0.1 + time * 0.01;
-    L.mountains.tilePositionX = this.dist * 0.2;
-    L.hills.tilePositionX = this.dist * 0.4;
-    L.trees.tilePositionX = this.dist * 0.75;
-    L.ground.tilePositionX = this.dist;
+    this.scrollers.forEach(s => s.sp.tilePositionX = this.dist * s.f);
     this.signs.forEach(s => s.obj.x = HERO_X + s.x - this.dist);
+    this.updateCritters(time, dt);
+    this.updateFriends();
+    this.updateRewards();
     if (this.state !== 'walk') return;
     if (this.round < ROUNDS && this.dist >= this.stops[this.round]) this.ask();
     else if (this.round >= ROUNDS && this.dist >= this.finishX - 200) this.finish();
+  }
+  // ---- 朋友：每一題有一隻小恐龍朋友在路邊等你，答對就加入隊伍，跟著你一起走 ----
+  spawnFriend() {
+    const used = this.friends.map(f => `${f.char}_${f.color}`);
+    let char, color, tries = 0;
+    do { char = pick(Object.keys(CHARS).filter(c => c !== look.char)); color = pick(Object.keys(DINOS)); } while (used.includes(`${char}_${color}`) && ++tries < 30);
+    const key = k => `${k}_${char}_${color}`;
+    if (!this.textures.exists(key('heroIdle'))) makeDino(this, char, color);
+    const c = this.add.container(HERO_X + 470, GROUND).setDepth(4);
+    const sp = this.add.sprite(0, 0, key('heroIdle')).setOrigin(.5, 1).setScale(.6).setFlipX(true);   // 面向主角
+    const bubble = txt(this, 0, -118, '❓', 34);
+    c.add([sp, bubble]);
+    this.tweens.add({ targets: bubble, y: -128, duration: 500, yoyo: true, repeat: -1 });
+    const f = { c, sp, bubble, char, color, wx: this.stops[this.round] + 270 };
+    this.waiting = f; this.worldFriends.push(f);
+  }
+  updateFriends() {
+    this.worldFriends = this.worldFriends.filter(f => {
+      f.c.x = HERO_X + f.wx - this.dist;
+      if (f.c.x < -120) { f.c.destroy(); if (this.waiting === f) this.waiting = null; return false; }
+      return true;
+    });
+  }
+  // 朋友加入：跳起來、彈到隊伍的位置，之後跟著主角蹦蹦跳跳
+  friendJoin() {
+    const f = this.waiting;
+    if (!f) return;
+    this.waiting = null;
+    this.worldFriends = this.worldFriends.filter(w => w !== f);
+    this.friends.push({ char: f.char, color: f.color });
+    f.bubble.destroy();
+    f.sp.setTexture(`heroCheer_${f.char}_${f.color}`).setFlipX(false);
+    if (this.team.length >= TEAM_MAX) {                          // 隊伍站不下時，最早的朋友回家
+      const old = this.team.shift();
+      this.tweens.add({ targets: old, alpha: 0, y: old.y - 40, duration: 400, onComplete: () => old.destroy() });
+    }
+    this.team.push(f.c);
+    this.team.forEach((m, i) => { if (m !== f.c) this.tweens.add({ targets: m, x: TEAM_X(i), duration: 400 }); });
+    const [x0, y0, tx, ty] = [f.c.x, f.c.y, TEAM_X(this.team.length - 1), TEAM_Y];
+    this.tweens.addCounter({
+      from: 0, to: 1, duration: 800, ease: 'Sine.inOut',
+      onUpdate: tw => { const t = tw.getValue(); f.c.setPosition(x0 + (tx - x0) * t, y0 + (ty - y0) * t - Math.sin(Math.PI * t) * 110); f.c.setScale(1 - .17 * t); },
+      onComplete: () => {
+        f.sp.setTexture(`heroIdle_${f.char}_${f.color}`);
+        this.tweens.add({ targets: f.sp, y: -8, duration: 260, yoyo: true, repeat: -1, delay: Math.random() * 200 });   // 一直蹦蹦跳跳
+      }
+    });
+    this.teamText.setText(`👥 ${this.friends.length}`);
+    this.tweens.add({ targets: this.teamText, scale: 1.3, duration: 160, yoyo: true });
+  }
+
+  // ---- 連續答對的獎勵：連對 3 題戴皇冠、連對 5 題出現彩虹（答錯就消失）----
+  makeRainbow() {
+    const g = this.add.graphics().setDepth(4);
+    [0xff8fa8, 0xffb36b, 0xffe27a, 0x8fe0b4, 0x8fd0f5, 0xc3a4f2].forEach((c, i) => {
+      g.lineStyle(10, c, .9).beginPath().arc(HERO_X, GROUND - 40, 132 + i * 9, Math.PI, Math.PI * 2).strokePath();
+    });
+    return g;
+  }
+  updateRewards() {
+    const h = this.hero, [ax, ay] = CHARS[look.char].crown;
+    this.crown.setPosition(h.x - 80 + ax, h.y - 150 + ay);
+    this.rainbow.y = h.y - GROUND;
+  }
+  popBanner(text, y = 150) {
+    const b = txt(this, W / 2, y, text, 56, '#ffffff').setStroke('#b99be0', 12).setDepth(25).setAlpha(0).setScale(.6);
+    this.tweens.add({ targets: b, alpha: 1, scale: 1, duration: 450, ease: 'Back.out' });
+    this.tweens.add({ targets: b, alpha: 0, y: y - 30, delay: 2000, duration: 600, onComplete: () => b.destroy() });
+  }
+  addStreak() {
+    this.streak++;
+    const msg = { 3: '👑 連對 3 題！', 5: '🌈 連對 5 題！', 7: '🔥 連對 7 題！', 9: '🏆 連對 9 題！' }[this.streak];
+    if (this.streak >= 3 && !this.crown.visible) {
+      this.crown.setVisible(true);
+      this.tweens.add({ targets: this.crown, scale: { from: 2.2, to: 1 }, alpha: { from: 0, to: 1 }, duration: 400, ease: 'Back.out' });
+    }
+    if (this.streak >= 5 && !this.rainbow.visible) {
+      this.rainbow.setVisible(true);
+      this.tweens.add({ targets: this.rainbow, alpha: { from: 0, to: 1 }, duration: 600 });
+    }
+    if (msg) { this.popBanner(msg, 190); beep([784, 988, 1175]); }
+  }
+  loseStreak() {
+    if (!this.streak) return;
+    this.streak = 0;
+    [this.crown, this.rainbow].forEach(o => { if (o.visible) { sparkle(this, this.hero.x, this.hero.y - 100, 5); o.setVisible(false); } });
+  }
+
+  spawnCritter() {
+    const [emoji, kind] = pick(CRITTERS[this.terrains[Math.min(2, Math.floor(this.round / 3))]]);
+    const o = this.add.text(W + 50, 0, emoji, { fontSize: '56px' }).setOrigin(.5).setPadding(12).setDepth(kind === 'ground' ? 3 : 6)
+      .setInteractive({ useHandCursor: true });
+    const c = { o, kind, wx: this.dist + W - HERO_X + 50, x: W + 50, y0: 0, vx: 0, t0: this.nowT, hop: false, gone: false };
+    if (kind === 'ground') o.y = c.y0 = GROUND + Phaser.Math.Between(50, 170);
+    else { c.y0 = kind === 'fly' ? Phaser.Math.Between(200, 520) : Phaser.Math.Between(160, 320); c.vx = kind === 'fly' ? Phaser.Math.Between(110, 190) : 35; }
+    o.on('pointerdown', () => this.tapCritter(c));
+    this.critters.push(c);
+  }
+  tapCritter(c) {
+    if (c.gone || c.hop) return;
+    beep([pick([523, 587, 659, 784, 880])]);
+    sparkle(this, c.o.x, c.o.y);
+    if (c.kind === 'ground') {
+      c.hop = true;
+      this.tweens.add({ targets: c.o, y: c.o.y - 80, angle: { from: -12, to: 12 }, duration: 220, yoyo: true, ease: 'Sine.out', onComplete: () => { c.o.setAngle(0); c.hop = false; } });
+    } else {
+      c.gone = true;
+      this.tweens.add({ targets: c.o, scale: 2, alpha: 0, y: c.o.y - 140, angle: 180, duration: 500, onComplete: () => c.o.destroy() });
+    }
+  }
+  updateCritters(time, dt) {
+    this.nowT = time;
+    if (!this.nextCritter) this.nextCritter = time + 1500;
+    if (this.state === 'walk' && time > this.nextCritter) {
+      this.nextCritter = time + Phaser.Math.Between(2500, 5000);
+      if (this.round >= ROUNDS || this.stops[this.round] - this.dist > 320) this.spawnCritter();   // 快到問號路牌時不放，畫面才不會太雜
+    }
+    this.critters = this.critters.filter(c => {
+      const o = c.o;
+      if (!o.active) return false;
+      if (c.kind === 'ground') o.x = HERO_X + c.wx - this.dist;
+      else if (!c.gone) { c.x -= c.vx * dt / 1000; o.x = c.x; o.y = c.y0 + Math.sin((time - c.t0) / (c.kind === 'fly' ? 280 : 900)) * (c.kind === 'fly' ? 26 : 12); }
+      if (o.x < -80) { o.destroy(); return false; }
+      return true;
+    });
   }
   ask() {
     this.state = 'ask'; this.wrong = 0; this.choices = [];
@@ -422,23 +598,78 @@ class WalkScene extends Phaser.Scene {
     bg.fillStyle(0xb99be0, 0.3).fillRoundedRect(-250, -205, 500, 430, 40);
     bg.fillStyle(0xffffff, 0.94).fillRoundedRect(-250, -215, 500, 430, 40);
     p.add(bg);
-    p.add(spec.bigIsEmoji ? this.add.text(0, -120, spec.big, { fontSize: '110px' }).setOrigin(0.5) : txt(this, 0, -120, spec.big, spec.bigSize, '#f06a9b'));
-    this.question = txt(this, 0, -15, spec.text, 32, INK, 440);
+    if (!spec.drag) p.add(spec.bigIsEmoji ? this.add.text(0, -120, spec.big, { fontSize: '110px' }).setOrigin(0.5) : txt(this, 0, -120, spec.big, spec.bigSize, '#f06a9b'));
+    this.question = txt(this, 0, spec.drag ? 8 : -15, spec.text, 32, INK, 440);
     p.add(this.question);
-    const bw = 125, gap = 155;
+    const bw = 125, gap = 155, rowY = spec.drag ? 140 : 125;
     spec.options.forEach(({ value, label }, i) => {
-      const color = spec.pic ? 0xfff3d6 : COLORS[(i + this.round) % COLORS.length];
-      const btn = button(this, (i - 1) * gap, 125, bw, 125, color, label, spec.optSize, b => {
+      const onPick = b => {
         if (this.state !== 'ask') return;
-        if (value === this.answer) { this.state = 'cheer'; this.correct(); }
+        if (spec.drag) { this.dropOn(value, b); return; }
+        if (value === this.answer) { this.state = 'cheer'; if (spec.bubble) this.popBubble(b); this.correct(); }
         else this.miss(b);
-      }, spec.pic);
+      };
+      const color = spec.pic ? 0xfff3d6 : COLORS[(i + this.round) % COLORS.length];
+      const btn = spec.bubble ? this.makeBubble((i - 1) * gap, [135, 105, 140][i], label, i, onPick)
+        : button(this, (i - 1) * gap, rowY, bw, spec.drag ? 110 : 125, color, label, spec.optSize, onPick, spec.pic);
       this.choices.push({ letter: value, btn });
       p.add(btn);
     });
     p.add(button(this, 195, -165, 70, 70, 0xffd96b, '🔊', 34, () => this.speakQuestion()));
-    this.tweens.add({ targets: p, y: 340, duration: 450, ease: 'Back.out' });
+    if (spec.drag) this.makeCard(spec.big);
+    this.tweens.add({ targets: p, y: PANEL_Y, duration: 450, ease: 'Back.out' });
     this.speakQuestion();
+  }
+  // 戳泡泡：選項是會輕輕飄動的泡泡，hit 是點擊範圍（miss 會用它把點錯的泡泡停用）
+  makeBubble(x, y, emoji, i, onPick) {
+    const b = this.add.container(x, y), f = this.add.container(0, 0);
+    const g = this.add.graphics();
+    g.fillStyle(0xb8e4ff, .32).fillCircle(0, 0, 60);
+    g.lineStyle(5, 0xffffff, .95).strokeCircle(0, 0, 60);
+    g.lineStyle(3, 0x8fc9f5, .55).strokeCircle(0, 0, 54);
+    g.fillStyle(0xffffff, .85).fillEllipse(-26, -32, 22, 12);
+    const t = this.add.text(0, 3, emoji, { fontSize: '64px' }).setOrigin(.5);
+    const hit = this.add.rectangle(0, 0, 130, 130, 0xffffff, 0.001).setInteractive({ useHandCursor: true });
+    hit.on('pointerdown', () => onPick(b));
+    f.add([g, t, hit]); b.add(f); b.hit = hit;
+    this.tweens.add({ targets: f, x: 10, duration: 1700 + i * 300, yoyo: true, repeat: -1, ease: 'Sine.inOut' });
+    this.tweens.add({ targets: f, y: 14, duration: 1300 + i * 250, yoyo: true, repeat: -1, ease: 'Sine.inOut' });
+    return b;
+  }
+  popBubble(b) {
+    sparkle(this, W / 2 + b.x, PANEL_Y + b.y, 8);
+    this.tweens.add({ targets: b, scale: 1.6, alpha: 0, duration: 300 });
+  }
+  // 拖曳配對：字母卡放在世界座標（不放在面板容器裡，拖曳座標才不會被容器轉換搞亂），手指拖到選項上放開就算答案
+  // 點一下選項也可以：字母卡會自己飛過去，年紀小的小朋友不一定拖得動
+  makeCard(letter) {
+    const home = this.cardHome = { x: W / 2, y: PANEL_Y - 98 }, startY = home.y - (PANEL_Y + 400);
+    const card = this.card = button(this, home.x, startY, 130, 130, 0xff9db8, letter, 90, () => {}).setDepth(31);
+    card.last.destroy();
+    const handle = this.handle = this.add.rectangle(home.x, startY, 150, 150, 0xffffff, 0.001).setDepth(32).setInteractive({ draggable: true, useHandCursor: true });
+    this.tweens.add({ targets: [card, handle], y: home.y, duration: 450, ease: 'Back.out' });
+    handle.on('dragstart', () => { if (this.state === 'ask') card.setScale(1.12); });
+    handle.on('drag', (pointer, dx, dy) => { if (this.state === 'ask') { handle.setPosition(dx, dy); card.setPosition(dx, dy); } });
+    handle.on('dragend', () => {
+      card.setScale(1);
+      if (this.state !== 'ask') return;
+      const hit = this.choices.find(c => Math.abs(handle.x - (W / 2 + c.btn.x)) < 80 && Math.abs(handle.y - (PANEL_Y + c.btn.y)) < 80);
+      if (hit) this.dropOn(hit.letter, hit.btn); else this.moveCard(this.cardHome);
+    });
+  }
+  moveCard({ x, y }) {
+    if (!this.card) return;
+    this.tweens.add({ targets: [this.card, this.handle], x, y, duration: 280, ease: 'Sine.inOut' });
+  }
+  dropOn(value, btn) {
+    const slot = { x: W / 2 + btn.x, y: PANEL_Y + btn.y - 14 };
+    if (value === this.answer) { this.state = 'cheer'; this.moveCard(slot); this.correct(); return; }
+    this.miss(btn);
+    this.moveCard(this.state === 'reveal' ? this.slotOf(this.answer) : this.cardHome);   // 答錯：字母卡飛回原位；公布答案：飛到正確的位置
+  }
+  slotOf(value) {
+    const b = this.choices.find(c => c.letter === value).btn;
+    return { x: W / 2 + b.x, y: PANEL_Y + b.y - 14 };
   }
   addScore(n) {
     this.score += n;
@@ -448,9 +679,11 @@ class WalkScene extends Phaser.Scene {
   speakQuestion() {
     if (this.state !== 'ask') return;
     const { type, dir, letter, en, zh } = this.q;
-    const [from, to] = dir === 'toUpper' ? ['小寫', '大寫'] : ['大寫', '小寫'];
+    const to = dir === 'toUpper' ? '大寫' : '小寫';
     say({
-      case: [[`這是${from}的`, 'zh-TW'], [letter, 'en-US'], [`，哪一個是${to}的`, 'zh-TW'], [letter, 'en-US']],
+      case: [[`哪一個是${to}的`, 'zh-TW'], [letter, 'en-US']],
+      drag: [[`把它拖到${to}的`, 'zh-TW'], [letter, 'en-US']],
+      bubble: [[en, 'en-US'], [en, 'en-US']],
       wordToPic: [[en, 'en-US'], [en, 'en-US']],   // 純英文語音，聽了選圖；中文只留在畫面上輔助
       word: [[en, 'en-US'], [zh + '，是哪個字母開頭呢？', 'zh-TW']]
     }[type]);
@@ -458,13 +691,13 @@ class WalkScene extends Phaser.Scene {
   // 公布答案時唸的內容與畫面文字
   answerParts() {
     const { type, letter, en, zh } = this.q;
-    if (type === 'case') return [['大寫的', 'zh-TW'], [letter, 'en-US'], ['，小寫的', 'zh-TW'], [letter, 'en-US']];
+    if (type === 'case' || type === 'drag') return [];   // 大小寫題答對或公布答案時不重唸字母，只唸稱讚／安慰
     if (type === 'word') return [[`${letter}, ${letter}, ${en}!`, 'en-US'], [zh, 'zh-TW']];
     return [[en, 'en-US'], [zh, 'zh-TW']];   // 單字與圖片配對：直接唸英文與中文
   }
   announce() {
     const { type, letter, en, zh } = this.q;
-    const text = type === 'case' ? `大寫 ${letter}　小寫 ${letter.toLowerCase()}`
+    const text = type === 'case' || type === 'drag' ? `大寫 ${letter}　小寫 ${letter.toLowerCase()}`
       : type === 'word' ? `${letter} is for ${en}!
 ${zh}` : `${en}
 ${zh}`;
@@ -472,6 +705,8 @@ ${zh}`;
   }
   correct() {
     this.addScore(3 - this.wrong);
+    if (this.wrong === 0) this.addStreak();
+    this.friendJoin();
     beep([523, 659, 784]); popper(this, this.hero);
     this.hero.setTexture(tex('heroCheer'));
     this.tweens.add({ targets: this.hero, y: GROUND - 70, duration: 250, yoyo: true, repeat: 1, ease: 'Sine.out' });
@@ -480,8 +715,9 @@ ${zh}`;
   }
   miss(btn) {
     this.wrong++;
+    this.loseStreak();
     beep([200]);
-    btn.last.disableInteractive();   // 點錯的選項變淡，不能再點
+    (btn.hit || btn.last).disableInteractive();   // 點錯的選項變淡，不能再點
     this.tweens.add({ targets: btn, x: btn.x + 12, duration: 60, yoyo: true, repeat: 3, onComplete: () => btn.setAlpha(0.3) });
     if (this.wrong < 2) { say([['再試試看喔', 'zh-TW']]); return; }
     // 錯兩次：公布答案，得 1 分，繼續往下一題
@@ -493,22 +729,119 @@ ${zh}`;
     say([...this.answerParts(), ['沒關係，下次再加油喔！', 'zh-TW']]).then(() => this.next());
   }
   next() {
+    if (this.card) {
+      const extra = [this.card, this.handle];
+      this.handle.disableInteractive();
+      this.tweens.add({ targets: extra, alpha: 0, duration: 250, onComplete: () => extra.forEach(o => o.destroy()) });
+      this.card = this.handle = null;
+    }
     this.tweens.add({ targets: this.panel, y: -400, duration: 350, ease: 'Back.in', onComplete: () => {
       this.panel.destroy(); this.round++;
       this.hero.setY(GROUND).play(walkKey()); this.state = 'walk';
+      this.waiting = null;                                     // 沒有答對的話，等你的朋友就留在原地，隨背景走遠
+      if (this.round < ROUNDS) this.spawnFriend();
+      if (this.round === 3 || this.round === 6) this.enterTerrain(this.terrains[this.round / 3]);
     } });
+  }
+  // 走到第 4、7 題前換地形：背景淡入新的景色，上方跳出地名
+  enterTerrain(terrain) {
+    swapTerrain(this, this.layers, this.scrollers, terrain);
+    const { name, icon } = TERRAINS[terrain];
+    beep([659, 784, 988]);
+    this.popBanner(`${icon} ${name}`);
   }
   finish() {
     this.state = 'end'; this.hero.stop().setTexture(tex('heroCheer'));
     this.cameras.main.fadeOut(600, 255, 230, 245);
-    this.cameras.main.once('camerafadeoutcomplete', () => this.scene.start('End', { score: this.score, max: ROUNDS * 3 }));
+    this.cameras.main.once('camerafadeoutcomplete', () => this.scene.start('Bonus', { score: this.score, max: ROUNDS * 3, friends: this.friends }));
+  }
+}
+
+// ============ 場景：結尾寶箱（10 題結束後，點開寶箱，得到的星星就是剛剛的分數）============
+// 主角和這局加入隊伍的朋友們一起在旁邊歡呼，打開後再進到總分畫面
+class BonusScene extends Phaser.Scene {
+  constructor() { super('Bonus'); }
+  create({ score, max, friends }) {
+    ensureLook(this);
+    addBackdrop(this);
+    const rate = score / max;
+    const [color, dark] = rate >= 0.8 ? [0xffc94d, 0xd99a2b] : rate >= 0.5 ? [0xff9db8, 0xe57596] : [0x8fd0f5, 0x62b3e6];   // 分數越高寶箱越閃亮
+    txt(this, W / 2, 80, '寶箱時間！', 58, '#ffffff').setStroke('#b99be0', 12);
+
+    // 主角與朋友們
+    const hero = this.add.sprite(W / 2, 690, tex('heroCheer')).setOrigin(0.5, 1).setScale(.9);
+    this.tweens.add({ targets: hero, y: 660, duration: 380, yoyo: true, repeat: -1, ease: 'Quad.out' });
+    const n = friends.length, gap = Math.min(80, 440 / Math.max(n, 1));
+    friends.forEach(({ char, color: c }, i) => {
+      const key = k => `${k}_${char}_${c}`;
+      if (!this.textures.exists(key('heroCheer'))) makeDino(this, char, c);
+      const f = this.add.sprite(W / 2 + (i - (n - 1) / 2) * gap, 810, key('heroCheer')).setOrigin(0.5, 1).setScale(.5);
+      this.tweens.add({ targets: f, y: 790, duration: 300, yoyo: true, repeat: -1, delay: i * 90, ease: 'Quad.out' });
+    });
+
+    // 寶箱：箱身加上可以掀開的箱蓋（以左邊為轉軸）
+    const rays = this.add.graphics().setPosition(W / 2, 330).setAlpha(0);
+    rays.fillStyle(0xfff3b0, .5);
+    for (let i = 0; i < 12; i++) { const a = i / 12 * Math.PI * 2; rays.fillTriangle(0, 0, Math.cos(a - .09) * 330, Math.sin(a - .09) * 330, Math.cos(a + .09) * 330, Math.sin(a + .09) * 330); }
+    const chest = this.add.container(W / 2, 330);
+    const body = this.add.graphics();
+    body.fillStyle(0x6b4a3a, .35).fillRoundedRect(-100, 4, 200, 112, 16);
+    body.fillStyle(dark).fillRoundedRect(-100, -10, 200, 112, 16);
+    body.fillStyle(color).fillRoundedRect(-96, -10, 192, 100, 14);
+    body.fillStyle(dark).fillRect(-62, -10, 16, 100).fillRect(46, -10, 16, 100);
+    const inside = this.add.graphics().fillStyle(0x4a3040).fillEllipse(0, -10, 192, 30);
+    const lid = this.add.container(-100, -10);
+    const lg = this.add.graphics();
+    lg.fillStyle(dark).fillRoundedRect(0, -64, 200, 76, { tl: 40, tr: 40, bl: 6, br: 6 });
+    lg.fillStyle(color).fillRoundedRect(4, -60, 192, 66, { tl: 36, tr: 36, bl: 4, br: 4 });
+    lg.fillStyle(dark).fillRect(38, -62, 16, 70).fillRect(146, -62, 16, 70);
+    lid.add(lg);
+    const lock = this.add.graphics().fillStyle(0xfff3b0).fillCircle(0, 6, 15).fillStyle(0xd99a2b).fillRect(-4, 0, 8, 14);
+    chest.add([inside, body, lid, lock]);
+    const shake = this.tweens.add({ targets: chest, angle: { from: -4, to: 4 }, duration: 160, yoyo: true, repeat: -1, ease: 'Sine.inOut' });
+
+    const prompt = txt(this, W / 2, 500, '點一下寶箱！', 52, '#f06a9b').setStroke('#ffffff', 10);
+    this.tweens.add({ targets: prompt, scale: 1.12, duration: 500, yoyo: true, repeat: -1, ease: 'Sine.inOut' });
+
+    let opened = false;
+    const open = () => {
+      if (opened) return;
+      opened = true; shake.stop(); chest.setAngle(0); prompt.destroy();
+      sayId++;
+      lock.setVisible(false);
+      this.tweens.add({ targets: lid, angle: -115, duration: 450, ease: 'Back.out' });
+      this.tweens.add({ targets: rays, alpha: 1, duration: 300 });
+      this.tweens.add({ targets: rays, angle: 360, duration: 9000, repeat: -1 });
+      beep([523, 659, 784, 1046]);
+      popper(this, { x: W / 2, y: 420 });
+      const total = txt(this, W / 2, 520, '⭐ × 0', 68, '#f06a9b').setStroke('#ffffff', 12);
+      say([['Wow!', 'en-US'], [`${score} 顆星星！`, 'zh-TW']]);
+      // 星星一顆一顆飛出來，落在寶箱四周
+      const stars = Math.min(score, 30);
+      for (let i = 0; i < stars; i++) {
+        this.time.delayedCall(500 + i * 70, () => {
+          const s = this.add.text(W / 2, 300, '⭐', { fontSize: '40px' }).setOrigin(.5).setDepth(10);
+          const tx = Phaser.Math.Between(30, W - 30), ty = Phaser.Math.Between(150, 470);
+          this.tweens.add({ targets: s, x: tx, y: { value: ty, ease: 'Bounce.out' }, angle: 360, duration: 700, ease: 'Sine.out' });
+          total.setText(`⭐ × ${i + 1}`);
+          if (i % 3 === 0) beep([pick([659, 784, 880, 1046])]);
+        });
+      }
+      this.time.delayedCall(500 + stars * 70 + 900, () => {
+        const b = button(this, W / 2, 900, 320, 84, COLORS[0], '▶ 看總分', 40, () => { sayId++; this.scene.start('End', { score, max }); });
+        b.setScale(0); this.tweens.add({ targets: b, scale: 1, duration: 350, ease: 'Back.out' });
+      });
+    };
+    this.add.rectangle(W / 2, 320, 260, 240, 0xffffff, 0.001).setInteractive({ useHandCursor: true }).on('pointerdown', open);
+    this.cameras.main.fadeIn(500, 255, 230, 245);
+    say([['點一下，打開寶箱！', 'zh-TW']]);
   }
 }
 
 // ============ 場景：結束（統計總分）============
 class EndScene extends Phaser.Scene {
   constructor() { super('End'); }
-  create({ score, max }) {
+  create({ score, max, again = 'Walk' }) {
     addBackdrop(this);
     const rate = score / max;
     const hero = this.add.sprite(W / 2, GROUND, tex('heroCheer')).setOrigin(0.5, 1).setScale(1.5);
@@ -529,7 +862,7 @@ class EndScene extends Phaser.Scene {
       this.tweens.add({ targets: s, scale: 1, duration: 350, delay: 1400 + i * 150, ease: 'Back.out' });
     }
 
-    button(this, W / 2, 790, 320, 84, COLORS[1], '🔁 再玩一次', 40, () => { sayId++; rollLook(); this.scene.start('Walk'); });
+    button(this, W / 2, 790, 320, 84, COLORS[1], '🔁 再玩一次', 40, () => { sayId++; rollLook(); this.scene.start(again); });
     button(this, W / 2, 890, 320, 84, COLORS[4], '🏠 回首頁', 40, () => { sayId++; this.scene.start('Title'); });
     this.cameras.main.fadeIn(500, 255, 230, 245);
     beep([523, 659, 784, 1046]); confetti(this);
@@ -538,8 +871,172 @@ class EndScene extends Phaser.Scene {
   }
 }
 
+// ============ 場景：餵恐龍（恐龍說想吃的食物單字，把對的食物拖給牠）============
+// 每局 8 隻食物、開頭字母不重複；三張卡的食物開頭字母都不同
+const FEED_ROUNDS = 8;
+const FEED_FOODS = ['Apple', 'Avocado', 'Banana', 'Bread', 'Broccoli', 'Candy', 'Carrot', 'Cherry', 'Cookie', 'Cheese', 'Coconut', 'Corn',
+  'Cucumber', 'Donut', 'Egg', 'French fries', 'Grapes', 'Hamburger', 'Hot dog', 'Ice cream', 'Kiwi', 'Lemon', 'Lollipop', 'Milk', 'Melon',
+  'Noodles', 'Orange', 'Pizza', 'Peach', 'Pear', 'Pineapple', 'Popcorn', 'Pancakes', 'Rice', 'Strawberry', 'Sandwich', 'Tomato', 'Watermelon'];
+function pickFeedQuestions() {
+  const byLetter = {};
+  for (const L in WORDS) for (const [en, zh, emoji] of WORDS[L]) if (FEED_FOODS.includes(en)) (byLetter[L] = byLetter[L] || []).push({ en, zh, emoji });
+  return shuffle(Object.keys(byLetter)).slice(0, FEED_ROUNDS).map(letter => {
+    const answer = pick(byLetter[letter]);
+    const others = shuffle(Object.keys(byLetter).filter(l => l !== letter)).slice(0, 2).map(l => pick(byLetter[l]));
+    return { letter, answer, options: shuffle([answer, ...others]) };
+  });
+}
+
+const FEED_DINO = { x: W / 2, y: 880, scale: 1.5 };
+const FEED_MOUTH = { x: W / 2 + 40, y: 750 };   // 食物拖到這附近就算餵到嘴巴
+const FEED_CARD_Y = 545;
+class FeedScene extends Phaser.Scene {
+  constructor() { super('Feed'); }
+  create() {
+    ensureLook(this);
+    addBackdrop(this);
+    this.round = -1; this.score = 0; this.wrong = 0; this.state = 'idle'; this.left = false; this.cards = [];
+    this.qs = pickFeedQuestions();
+
+    button(this, 50, 50, 64, 64, 0xc3a4f2, '🏠', 30, () => { this.left = true; sayId++; if (hasTTS) speechSynthesis.cancel(); this.scene.start('Title'); }).setDepth(20);
+    // 肚子裡的食物：吃一個就多一格
+    const slots = this.add.graphics();
+    this.slotX = i => 130 + i * 50;
+    for (let i = 0; i < FEED_ROUNDS; i++) slots.fillStyle(0xffffff, .7).fillCircle(this.slotX(i), 70, 22).lineStyle(3, 0xd4c1f5).strokeCircle(this.slotX(i), 70, 22);
+
+    // 恐龍：吃得越多越胖一點
+    this.dino = this.add.sprite(FEED_DINO.x, FEED_DINO.y, tex('heroIdle')).setOrigin(.5, 1).setScale(FEED_DINO.scale).setDepth(5);
+    this.idleTween = this.tweens.add({ targets: this.dino, y: FEED_DINO.y - 6, duration: 700, yoyo: true, repeat: -1, ease: 'Sine.inOut' });
+
+    // 恐龍的想法泡泡：大大的字母
+    const b = this.bubble = this.add.container(W / 2, 235).setDepth(10);
+    const g = this.add.graphics();
+    g.fillStyle(0xb99be0, .3).fillRoundedRect(-205, -112, 420, 250, 40);
+    g.fillStyle(0xffffff).fillRoundedRect(-210, -125, 420, 250, 40).fillTriangle(-20, 120, 20, 120, 0, 160);
+    g.lineStyle(5, 0xd4c1f5).strokeRoundedRect(-210, -125, 420, 250, 40);
+    this.letterText = txt(this, 0, -25, '', 110, '#f06a9b');
+    this.hintText = txt(this, 0, 80, '', 30);
+    const hit = this.add.rectangle(0, 0, 420, 250, 0xffffff, 0.001).setInteractive({ useHandCursor: true }).on('pointerdown', () => this.speakQuestion());
+    b.add([g, this.letterText, this.hintText, hit]);
+
+    this.cameras.main.fadeIn(400, 255, 230, 245);
+    this.time.delayedCall(500, () => this.next());
+  }
+
+  next() {
+    if (this.left) return;
+    this.round++;
+    if (this.round >= FEED_ROUNDS) { this.finish(); return; }
+    const q = this.q = this.qs[this.round];
+    this.wrong = 0;
+    this.dino.setTexture(tex('heroIdle')).setAngle(0);
+    this.letterText.setText(q.answer.en).setFontSize(Math.min(110, Math.floor(380 / (q.answer.en.length * .6))));
+    this.hintText.setText(`我想吃 ${q.answer.zh}`);
+    this.bubble.setScale(.6);
+    this.tweens.add({ targets: this.bubble, scale: 1, duration: 400, ease: 'Back.out' });
+    this.makeCards(q);
+    this.state = 'ask';
+    this.speakQuestion();
+  }
+  speakQuestion() {
+    if (this.state !== 'ask') return;
+    say([['我想吃', 'zh-TW'], [this.q.answer.en, 'en-US']]);
+  }
+
+  // 三張食物卡：可以拖給恐龍，也可以直接點一下
+  makeCards(q) {
+    this.cards = q.options.map((food, i) => {
+      const x = 95 + i * 175, y = FEED_CARD_Y;
+      const c = this.add.container(x, y - 60).setDepth(30).setAlpha(0);
+      const g = this.add.graphics();
+      g.fillStyle(0xb99be0, .3).fillRoundedRect(-75, -85, 150, 190, 28);
+      g.fillStyle(0xffffff).fillRoundedRect(-75, -95, 150, 190, 28).lineStyle(4, 0xd4c1f5).strokeRoundedRect(-75, -95, 150, 190, 28);
+      c.add([g, txt(this, 0, 0, food.emoji, 100, '#000000')]);
+      const handle = this.add.rectangle(x, y, 160, 200, 0xffffff, 0.001).setDepth(31).setInteractive({ draggable: true, useHandCursor: true });
+      const card = { food, c, handle, home: { x, y }, dragged: false };
+      this.tweens.add({ targets: c, y, alpha: 1, duration: 400, delay: i * 120, ease: 'Back.out' });
+      handle.on('pointerdown', () => { card.dragged = false; if (this.state === 'ask') say([[food.en, 'en-US']]); });
+      handle.on('dragstart', () => { card.dragged = true; if (this.state === 'ask') { c.setScale(1.1).setDepth(35); handle.setDepth(36); } });
+      handle.on('drag', (pointer, dx, dy) => {
+        if (this.state !== 'ask') return;
+        handle.setPosition(dx, dy); c.setPosition(dx, dy);
+        const near = Math.hypot(dx - FEED_MOUTH.x, dy - FEED_MOUTH.y) < 190;     // 靠近嘴巴時恐龍張開嘴「啊～」
+        this.dino.setTexture(tex(near ? 'heroCheer' : 'heroIdle'));
+      });
+      handle.on('dragend', () => {
+        c.setScale(1).setDepth(30); handle.setDepth(31);
+        if (this.state !== 'ask') return;
+        if (Math.hypot(handle.x - FEED_MOUTH.x, handle.y - FEED_MOUTH.y) < 190) this.feed(card);
+        else { this.dino.setTexture(tex('heroIdle')); this.sendHome(card); }
+      });
+      handle.on('pointerup', () => { if (!card.dragged) this.feed(card); });
+      return card;
+    });
+  }
+  sendHome(card) { this.tweens.add({ targets: [card.c, card.handle], x: card.home.x, y: card.home.y, duration: 280, ease: 'Sine.inOut' }); }
+
+  feed(card) {
+    if (this.state !== 'ask') return;
+    if (card.food === this.q.answer) { this.state = 'cheer'; this.eat(card, [[`${card.food.en}!`, 'en-US'], [pick(PRAISE), 'zh-TW']], true); return; }
+    // 答錯：食物搖頭飛回去
+    this.wrong++;
+    this.sendHome(card);
+    this.tweens.add({ targets: this.dino, angle: { from: -6, to: 6 }, duration: 110, yoyo: true, repeat: 2, onComplete: () => this.dino.setAngle(0) });
+    this.dino.setTexture(tex('heroIdle'));
+    beep([330, 262]);
+    if (this.wrong === 1) {
+      say([[card.food.en, 'en-US'], ['不是', 'zh-TW'], [this.q.answer.en, 'en-US'], ['喔', 'zh-TW']]);
+      return;
+    }
+    // 第二次還是不對：安慰一下，直接把正確的食物餵給恐龍
+    this.state = 'reveal';
+    const right = this.cards.find(c => c.food === this.q.answer);
+    this.tweens.add({ targets: right.c, scale: 1.18, duration: 220, yoyo: true, repeat: 1 });
+    this.time.delayedCall(800, () => { if (!this.left) this.eat(right, [['沒關係，下次再加油喔！', 'zh-TW']], false); });
+  }
+
+  // 食物飛進嘴裡，恐龍開心地咀嚼；celebrate = 答對的慶祝（拉炮、加分）
+  eat(card, parts, celebrate) {
+    const idx = this.round, other = this.cards.filter(c => c !== card);
+    other.forEach(o => { o.handle.disableInteractive(); this.tweens.add({ targets: o.c, alpha: 0, y: o.c.y + 40, duration: 300 }); });
+    card.handle.disableInteractive();
+    this.dino.setTexture(tex('heroCheer'));
+    this.tweens.add({
+      targets: [card.c, card.handle], x: FEED_MOUTH.x, y: FEED_MOUTH.y, scale: .25, duration: 380, ease: 'Sine.in',
+      onComplete: () => {
+        card.c.setAlpha(0);
+        this.chomp(celebrate);
+        const slot = txt(this, this.slotX(idx), 70, card.food.emoji, 34, '#000000').setDepth(21).setScale(0);
+        this.tweens.add({ targets: slot, scale: 1, duration: 350, ease: 'Back.out' });
+      }
+    });
+    if (celebrate) {
+      this.score += Math.max(0, 3 - this.wrong);
+      this.time.delayedCall(380, () => { beep([523, 659, 784]); popper(this, this.dino); });
+    }
+    const voice = parts.length ? say(parts) : Promise.resolve();
+    Promise.all([voice, new Promise(r => this.time.delayedCall(1700, r))]).then(() => {
+      this.cards.forEach(c => { c.c.destroy(); c.handle.destroy(); });
+      this.cards = [];
+      this.next();
+    });
+  }
+  chomp(celebrate) {
+    const s = this.dino.scaleX, grow = FEED_DINO.scale + (this.round + 1) * .035;
+    this.tweens.add({ targets: this.dino, scaleX: s * 1.12, scaleY: s * .9, duration: 130, yoyo: true, repeat: 2, onComplete: () => this.dino.setScale(grow) });
+    if (celebrate) sparkle(this, FEED_MOUTH.x, FEED_MOUTH.y - 60, 8);
+  }
+
+  finish() {
+    this.state = 'end';
+    this.bubble.destroy();
+    this.cameras.main.fadeOut(600, 255, 230, 245);
+    this.cameras.main.once('camerafadeoutcomplete', () => this.scene.start('End', { score: this.score, max: FEED_ROUNDS * 3, again: 'Feed' }));
+  }
+}
+
 new Phaser.Game({
   type: Phaser.AUTO, parent: 'game', width: W, height: H, backgroundColor: '#d9f7e6',
   scale: { mode: Phaser.Scale.FIT, autoCenter: Phaser.Scale.CENTER_BOTH },
-  scene: [TitleScene, SelectScene, WalkScene, EndScene]
+  scene: [TitleScene, SelectScene, WalkScene, FeedScene, BonusScene, EndScene]
 });

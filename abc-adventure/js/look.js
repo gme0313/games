@@ -53,11 +53,16 @@ const SCENES = {
 
 // 可選的主角；draw 在 160x150 的畫布上畫出面向右邊的角色，腳底約在 y=145
 // 參數 a / b：後腳 / 前腳抬起的高度；bob：身體上下彈跳；tail：尾巴擺動；cheer：歡呼姿勢
+// crown：連續答對時皇冠戴在貼圖上的位置（頭頂）
 const CHARS = {
-  trex:    { name: '暴龍',   en: 'Tyrannosaurus', draw: drawTrex },
-  tricera: { name: '三角龍', en: 'Triceratops',   draw: drawTricera },
-  spino:   { name: '棘龍',   en: 'Spinosaurus',   draw: drawSpino },
-  mosa:    { name: '滄龍',   en: 'Mosasaurus',    draw: drawMosa }
+  trex:    { name: '暴龍',   en: 'Tyrannosaurus', draw: drawTrex, crown: [108, 16] },
+  tricera: { name: '三角龍', en: 'Triceratops',   draw: drawTricera, crown: [112, 30] },
+  spino:   { name: '棘龍',   en: 'Spinosaurus',   draw: drawSpino, crown: [100, 22] },
+  mosa:    { name: '滄龍',   en: 'Mosasaurus',    draw: drawMosa, crown: [112, 54] },
+  brachio: { name: '腕龍',   en: 'Brachiosaurus', draw: drawBrachio, crown: [118, 8] },
+  stego:   { name: '劍龍',   en: 'Stegosaurus',   draw: drawStego, crown: [116, 74] },
+  anky:    { name: '甲龍',   en: 'Ankylosaurus',  draw: drawAnky, crown: [118, 82] },
+  ptero:   { name: '翼龍',   en: 'Pteranodon',    draw: drawPtero, crown: [100, 26] }
 };
 const CHAR_KEY = 'abc-adventure-char';
 function loadChar() {
@@ -70,7 +75,7 @@ function saveChar(c) {
 // 目前這一輪的外觀：char＝主角（會記住）、dino＝顏色、scene＝時段（標題畫面與「再玩一次」時隨機）
 const look = { char: loadChar(), dino: 'green', scene: 'day' };
 const tex = (k, char = look.char) => `${k}_${char}_${look.dino}`;   // 主角貼圖名稱
-const bgKey = (k, name = look.scene) => `${k}_${name}`;             // 背景貼圖名稱
+const bgKey = (k, name = look.scene, terrain = 'meadow') => terrain === 'meadow' ? `${k}_${name}` : `${k}_${name}_${terrain}`;   // 背景貼圖名稱（草原是原本的名稱）
 const walkKey = () => `walk_${look.char}_${look.dino}`;
 function rollLook() {
   look.dino = pick(Object.keys(DINOS));
@@ -223,6 +228,103 @@ function drawMosa(g, pal, { a = 0, b = 0, bob = 0, tail = 0, cheer = false }) {
   smile(g, pal, 138, 94 - dy, 8, cheer);
 }
 
+// ---- 腕龍：長長的脖子、四隻粗腿 ----
+function drawBrachio(g, pal, { a = 0, b = 0, bob = 0, tail = 0, cheer = false }) {
+  const { body: BODY, dark: DARK, belly: BELLY, spike: ACC } = pal, dy = bob;
+
+  g.fillStyle(BODY).fillTriangle(30, 88 - dy, 4, 114 - dy + tail, 34, 112 - dy);                // 尾巴
+  g.fillCircle(4, 114 - dy + tail, 6);
+  g.fillStyle(DARK).fillEllipse(50, 124, 22, 30).fillEllipse(52, 144 - b, 28, 13);              // 遠側的腳
+  g.fillEllipse(92, 124, 22, 30).fillEllipse(94, 144 - a, 28, 13);
+  g.fillStyle(BODY).fillEllipse(62, 100 - dy, 88, 56);                                          // 身體
+  g.fillTriangle(78, 88 - dy, 104, 104 - dy, 126, 46 - dy);                                     // 長脖子
+  g.fillTriangle(78, 88 - dy, 126, 46 - dy, 102, 34 - dy);
+  g.fillStyle(ACC).fillCircle(46, 82 - dy, 6).fillCircle(62, 76 - dy, 6).fillCircle(78, 80 - dy, 5);   // 背上的圓點
+  g.fillCircle(94, 62 - dy, 4).fillCircle(102, 46 - dy, 3.5);
+  g.fillStyle(BELLY).fillEllipse(66, 114 - dy, 60, 30);                                         // 肚子
+  g.fillStyle(BODY).fillEllipse(38, 124, 24, 30).fillEllipse(40, 144 - a, 30, 14);              // 近側的腳
+  g.fillEllipse(80, 124, 24, 30).fillEllipse(82, 144 - (cheer ? 24 : b), 30, 14);
+  g.fillStyle(BODY).fillCircle(118, 28 - dy, 15).fillEllipse(133, 33 - dy, 26, 17);             // 頭與嘴
+  g.fillStyle(DARK).fillCircle(122, 17 - dy, 2.5);                                              // 頭頂的鼻孔
+  g.fillStyle(0xff9db8, 0.7).fillCircle(124, 40 - dy, 5);                                       // 腮紅
+  eye(g, 121, 26 - dy, 7, cheer);
+  smile(g, pal, 135, 37 - dy, 6, cheer);
+}
+
+// ---- 劍龍：背上一排大骨板、尾巴有尖刺 ----
+function drawStego(g, pal, { a = 0, b = 0, bob = 0, tail = 0, cheer = false }) {
+  const { body: BODY, dark: DARK, belly: BELLY, spike: ACC } = pal, dy = bob;
+
+  g.fillStyle(BODY).fillTriangle(26, 80 - dy, 6, 102 - dy + tail, 30, 108 - dy);                // 尾巴
+  g.fillStyle(ACC).fillTriangle(16, 92 - dy + tail, 2, 72 - dy + tail, 22, 88 - dy + tail);     // 尾巴尖刺
+  g.fillTriangle(10, 100 - dy + tail, 0, 126 - dy + tail, 20, 102 - dy + tail);
+  g.fillStyle(DARK).fillEllipse(48, 124, 26, 30).fillEllipse(52, 144 - a, 32, 14);              // 遠側的腳
+  g.fillEllipse(96, 124, 24, 28).fillEllipse(100, 144 - b, 30, 14);
+  g.fillStyle(ACC);                                                                             // 背上的骨板
+  [[40, 24], [58, 34], [76, 34], [94, 26]].forEach(([x, h]) => {
+    const top = 90 - dy - 33 * Math.sqrt(1 - ((x - 66) / 46) ** 2);
+    g.fillTriangle(x - 12, top + 8, x, top - h, x + 12, top + 8);
+  });
+  g.fillStyle(BODY).fillEllipse(66, 92 - dy, 92, 66);                                           // 身體
+  g.fillStyle(DARK).fillCircle(44, 82 - dy, 5).fillCircle(60, 74 - dy, 4).fillCircle(78, 76 - dy, 4);
+  g.fillStyle(BELLY).fillEllipse(72, 106 - dy, 56, 36);                                         // 肚子
+  g.fillStyle(BODY).fillEllipse(40, 124, 28, 32).fillEllipse(44, 144 - a, 34, 15);              // 近側的腳
+  g.fillEllipse(86, 124, 26, 30).fillEllipse(90, 144 - (cheer ? 22 : b), 32, 15);
+  g.fillStyle(BODY).fillCircle(116, 98 - dy, 19).fillEllipse(136, 104 - dy, 32, 20);            // 小小的頭與嘴
+  g.fillStyle(0xff9db8, 0.7).fillCircle(122, 110 - dy, 5);                                      // 腮紅
+  eye(g, 118, 92 - dy, 7, cheer);
+  g.fillStyle(DARK).fillCircle(148, 99 - dy, 2);                                                // 鼻孔
+  smile(g, pal, 135, 108 - dy, 7, cheer);
+}
+
+// ---- 甲龍：矮矮胖胖的鎧甲與尾巴上的大錘 ----
+function drawAnky(g, pal, { a = 0, b = 0, bob = 0, tail = 0, cheer = false }) {
+  const { body: BODY, dark: DARK, belly: BELLY, spike: ACC } = pal, dy = bob;
+
+  g.fillStyle(BODY).fillTriangle(30, 100 - dy, 14, 110 - dy + tail, 32, 118 - dy);              // 尾巴
+  g.fillStyle(DARK).fillCircle(17, 112 - dy + tail, 13);                                        // 尾巴上的大錘
+  g.fillStyle(ACC).fillTriangle(9, 106 - dy + tail, 17, 88 - dy + tail, 25, 104 - dy + tail);
+  g.fillTriangle(9, 118 - dy + tail, 17, 136 - dy + tail, 25, 120 - dy + tail);
+  g.fillStyle(DARK).fillEllipse(50, 128, 26, 24).fillEllipse(54, 144 - a, 32, 14);              // 遠側的腳
+  g.fillEllipse(98, 128, 24, 24).fillEllipse(102, 144 - b, 30, 14);
+  g.fillStyle(DARK).fillTriangle(34, 90 - dy, 28, 74 - dy, 44, 82 - dy);                        // 身側的尖刺
+  g.fillTriangle(100, 92 - dy, 106, 76 - dy, 92, 84 - dy);
+  g.fillStyle(BODY).fillEllipse(68, 106 - dy, 104, 58);                                         // 身體
+  g.fillStyle(ACC);                                                                             // 背上的圓形裝甲
+  [[40, 90], [56, 82], [72, 80], [88, 84]].forEach(([x, y]) => g.fillCircle(x, y - dy, 9));
+  g.fillStyle(DARK).fillCircle(48, 100 - dy, 4).fillCircle(64, 94 - dy, 4).fillCircle(80, 96 - dy, 4);
+  g.fillStyle(BELLY).fillEllipse(74, 120 - dy, 60, 26);                                         // 肚子
+  g.fillStyle(BODY).fillEllipse(42, 128, 28, 26).fillEllipse(46, 144 - a, 34, 15);              // 近側的腳
+  g.fillEllipse(90, 128, 26, 26).fillEllipse(94, 144 - (cheer ? 22 : b), 32, 15);
+  g.fillStyle(BODY).fillCircle(118, 104 - dy, 20).fillEllipse(138, 110 - dy, 28, 20);           // 頭與嘴
+  g.fillStyle(ACC).fillTriangle(104, 90 - dy, 100, 76 - dy, 114, 86 - dy);                      // 頭後的小角
+  g.fillStyle(0xff9db8, 0.7).fillCircle(124, 116 - dy, 5);                                      // 腮紅
+  eye(g, 122, 98 - dy, 7, cheer);
+  g.fillStyle(DARK).fillCircle(148, 105 - dy, 2);                                               // 鼻孔
+  smile(g, pal, 136, 114 - dy, 7, cheer);
+}
+
+// ---- 翼龍：大翅膀、長長的嘴與頭冠 ----
+function drawPtero(g, pal, { a = 0, b = 0, bob = 0, tail = 0, cheer = false }) {
+  const { body: BODY, dark: DARK, belly: BELLY, spike: ACC } = pal, dy = bob;
+  const flap = cheer ? 16 : 62 + tail * 3;                                                      // 翅膀尖端的高度（歡呼時高高舉起）
+
+  g.fillStyle(ACC).fillTriangle(70, 90 - dy, 8, flap - dy, 28, 116 - dy);                       // 後側的翅膀
+  g.fillStyle(DARK).fillEllipse(60, 130, 12, 30).fillEllipse(62, 144 - a, 22, 10);              // 腳
+  g.fillEllipse(80, 130, 12, 30).fillEllipse(82, 144 - b, 22, 10);
+  g.fillStyle(BODY).fillEllipse(70, 100 - dy, 62, 54);                                          // 身體
+  g.fillStyle(BELLY).fillEllipse(78, 108 - dy, 34, 34);                                         // 肚子
+  g.fillStyle(BODY).fillCircle(92, 78 - dy, 14);                                                // 脖子
+  if (cheer) g.fillStyle(ACC).fillTriangle(86, 86 - dy, 44, 6, 50, 124 - dy);                    // 前側的翅膀：歡呼時高舉
+  else g.fillStyle(ACC).fillTriangle(86, 86 - dy, 34, 108 - dy, 90, 122 - dy);                  // 平常收在身側
+  g.fillStyle(BODY).fillCircle(104, 58 - dy, 22);                                               // 頭
+  g.fillStyle(DARK).fillTriangle(90, 44 - dy, 52, 26 - dy, 96, 64 - dy);                        // 頭冠
+  g.fillStyle(BODY).fillTriangle(118, 50 - dy, 158, 60 - dy, 118, 72 - dy);                     // 長長的嘴
+  g.fillStyle(0xff9db8, 0.7).fillCircle(110, 70 - dy, 5);                                       // 腮紅
+  eye(g, 108, 52 - dy, 7, cheer);
+  smile(g, pal, 128, 70 - dy, 6, cheer);
+}
+
 function makeDinoFrame(scene, key, char, pal, opts = {}) {
   const g = scene.add.graphics();
   CHARS[char].draw(g, pal, opts);
@@ -343,12 +445,25 @@ function makeClouds(scene, name, T) {
   });
 }
 function makeMountains(scene, name, T) {
-  const range = (ctx, dx, peaks, base, fill) => chalkShape(ctx, () => {
-    ctx.moveTo(dx, base); peaks.forEach(([x, y]) => ctx.lineTo(dx + x, y)); ctx.lineTo(dx + W, base); ctx.closePath();
-  }, fill, T.edge, [dx, 70, dx + W, base], T.edge);
-  chalkTexture(scene, bgKey('mountains', name), W, 300, ctx => {
-    tiled(W, dx => range(ctx, dx, [[0, 170], [130, 110], [250, 180], [380, 90], [540, 170]], 300, T.mountains[0]));
-    tiled(W, dx => range(ctx, dx, [[0, 215], [90, 100], [190, 205], [290, 120], [400, 215], [470, 140], [540, 215]], 300, T.mountains[1]));
+  const capLine = (x, y) => y + 9 * Math.sin(Math.PI * 2 * 9 * x / W) + 6 * Math.sin(Math.PI * 2 * 14 * x / W);   // 雪線／岩漿線：整數頻率，左右能接起來
+  // capFill：山頂另外蓋一層顏色（雪地的雪、火山的岩漿）
+  const range = (ctx, dx, peaks, base, fill, capFill, capY = 150) => {
+    const path = () => { ctx.moveTo(dx, base); peaks.forEach(([x, y]) => ctx.lineTo(dx + x, y)); ctx.lineTo(dx + W, base); ctx.closePath(); };
+    chalkShape(ctx, path, fill, T.edge, [dx, 70, dx + W, base], T.edge);
+    if (!capFill) return;
+    ctx.save();
+    ctx.beginPath(); ctx.moveTo(dx, 0);
+    for (let x = 0; x <= W; x += 15) ctx.lineTo(dx + x, capLine(x, capY));
+    ctx.lineTo(dx + W, 0); ctx.closePath(); ctx.clip();
+    chalkShape(ctx, path, capFill, T.edge, [dx, 70, dx + W, base], T.edge);
+    ctx.restore();
+  };
+  const volcano = T.terrain === 'volcano', snow = T.terrain === 'snow';
+  chalkTexture(scene, bgKey('mountains', name, T.terrain), W, 300, ctx => {
+    tiled(W, dx => range(ctx, dx, [[0, 170], [130, 110], [250, 180], [380, 90], [540, 170]], 300, T.mountains[0], snow && T.capFill, 140));
+    tiled(W, dx => volcano
+      ? range(ctx, dx, [[0, 235], [110, 180], [250, 235], [315, 130], [345, 100], [385, 100], [415, 130], [480, 235], [540, 235]], 300, T.mountains[1], T.capFill, 150)
+      : range(ctx, dx, [[0, 215], [90, 100], [190, 205], [290, 120], [400, 215], [470, 140], [540, 215]], 300, T.mountains[1], snow && T.capFill, 160));
     chalkGrain(ctx, W, 300, 2000, true);
   });
 }
@@ -360,36 +475,84 @@ function makeHills(scene, name, T) {
     }
     ctx.lineTo(dx + W, 260); ctx.closePath();
   }, fill, T.edge, [dx, 60, dx + W, 260], T.edge);
-  chalkTexture(scene, bgKey('hills', name), W, 260, ctx => {
+  chalkTexture(scene, bgKey('hills', name, T.terrain), W, 260, ctx => {
     tiled(W, dx => hill(ctx, dx, 90, 24, 3, 2, 10, 2, T.hills[0]));
     tiled(W, dx => hill(ctx, dx, 140, 26, 2, 1, 12, 3, T.hills[1]));
     chalkGrain(ctx, W, 260, 2000, true);
   });
 }
 function makeTrees(scene, name, T) {
-  const base = 196;
+  const base = 196, kind = T.kind || 'meadow', SNOW_EDGE = '#b9cbec';
   const tree = (ctx, x, canopy) => {
     chalkShape(ctx, () => ctx.rect(x - 7, base - 74, 14, 74), T.trunk, T.edge, [x - 7, base - 74, x + 7, base], T.edge);
     chalkShape(ctx, () => {
       [[0, -102, 32], [-22, -82, 24], [22, -82, 24]].forEach(([ox, oy, r]) => { ctx.moveTo(x + ox + r, base + oy); ctx.arc(x + ox, base + oy, r, 0, Math.PI * 2); });
     }, canopy, T.edge, [x - 50, base - 140, x + 50, base - 55], T.edge);
   };
-  const bush = (ctx, x) => chalkShape(ctx, () => {
+  const bush = (ctx, x, fill = T.bush) => chalkShape(ctx, () => {
     [[-18, -14, 18], [4, -22, 22], [26, -12, 16]].forEach(([ox, oy, r]) => { ctx.moveTo(x + ox + r, base + oy); ctx.arc(x + ox, base + oy, r, 0, Math.PI * 2); });
-  }, T.bush, T.edge, [x - 40, base - 46, x + 45, base], T.edge);
-  chalkTexture(scene, bgKey('trees', name), W, 200, ctx => {
-    tiled(W, dx => {
-      tree(ctx, dx + 70, T.canopy[0]);
-      bush(ctx, dx + 195);
-      tree(ctx, dx + 320, T.canopy[1]);
-      bush(ctx, dx + 450);
+  }, fill, kind === 'snow' ? SNOW_EDGE : T.edge, [x - 40, base - 46, x + 45, base], T.edge);
+  // 海邊：椰子樹、海灘傘
+  const palm = (ctx, x) => {
+    chalkShape(ctx, () => {
+      ctx.moveTo(x - 7, base); ctx.quadraticCurveTo(x - 4, base - 46, x + 14, base - 88);
+      ctx.lineTo(x + 26, base - 83); ctx.quadraticCurveTo(x + 8, base - 46, x + 7, base); ctx.closePath();
+    }, T.trunk, T.edge, [x - 7, base - 90, x + 26, base], T.edge);
+    const tx = x + 20, ty = base - 88;
+    [T.canopy[0], T.canopy[1]].forEach((fill, pass) => chalkShape(ctx, () => {
+      [-170, -125, -85, -45, -5, 25, 155].forEach((deg, i) => {
+        if (i % 2 !== pass) return;
+        const a = deg * Math.PI / 180, rot = a * 0.6;
+        const cx = tx + Math.cos(a) * 26, cy = ty + Math.sin(a) * 16 + (Math.abs(deg) < 30 || Math.abs(deg) > 150 ? 8 : 0);
+        ctx.moveTo(cx + 30 * Math.cos(rot), cy + 30 * Math.sin(rot)); ctx.ellipse(cx, cy, 30, 9, rot, 0, Math.PI * 2);
+      });
+    }, fill, T.edge, [tx - 60, ty - 40, tx + 60, ty + 30], T.edge));
+    ctx.fillStyle = '#b98a6a'; [[tx - 4, ty + 6], [tx + 7, ty + 8]].forEach(([cx, cy]) => { ctx.beginPath(); ctx.arc(cx, cy, 5, 0, Math.PI * 2); ctx.fill(); });
+  };
+  const umbrella = (ctx, x) => {
+    chalkShape(ctx, () => ctx.rect(x - 3, base - 72, 6, 72), T.trunk, T.edge, [x - 3, base - 72, x + 3, base], T.edge);
+    chalkShape(ctx, () => { ctx.moveTo(x - 46, base - 66); ctx.quadraticCurveTo(x, base - 132, x + 46, base - 66); ctx.closePath(); }, '#ffb3c7', T.edge, [x - 46, base - 100, x + 46, base - 66], T.edge);
+    chalkShape(ctx, () => { ctx.moveTo(x - 14, base - 72); ctx.lineTo(x, base - 97); ctx.lineTo(x + 14, base - 72); ctx.closePath(); }, '#ffffff', T.edge, [x - 14, base - 97, x + 14, base - 72], T.edge);
+  };
+  // 雪地：松樹、雪人
+  const pine = (ctx, x) => {
+    chalkShape(ctx, () => ctx.rect(x - 6, base - 60, 12, 60), T.trunk, SNOW_EDGE, [x - 6, base - 60, x + 6, base], T.edge);
+    [[150, 108, 30], [125, 80, 38], [98, 52, 46]].forEach(([yt, yb, hw]) => {
+      yt = base - yt; yb = base - yb + 4;
+      chalkShape(ctx, () => { ctx.moveTo(x, yt); ctx.lineTo(x + hw, yb); ctx.lineTo(x - hw, yb); ctx.closePath(); }, T.canopy[0], SNOW_EDGE, [x - hw, yt, x + hw, yb], T.edge);
+      chalkShape(ctx, () => { ctx.moveTo(x, yt); ctx.lineTo(x + hw * .45, yt + (yb - yt) * .45); ctx.lineTo(x - hw * .45, yt + (yb - yt) * .45); ctx.closePath(); }, '#ffffff', SNOW_EDGE, [x - hw, yt, x + hw, yb], T.edge);
     });
+  };
+  const snowman = (ctx, x) => {
+    [[24, 24], [62, 18], [90, 13]].forEach(([cy, r]) => chalkShape(ctx, () => ctx.arc(x, base - cy, r, 0, Math.PI * 2), '#ffffff', SNOW_EDGE, [x - r, base - cy - r, x + r, base - cy + r], T.edge));
+    chalkShape(ctx, () => ctx.rect(x - 12, base - 116, 24, 14), '#8e74c4', T.edge, [x - 12, base - 116, x + 12, base - 102], T.edge);
+    chalkShape(ctx, () => ctx.rect(x - 17, base - 104, 34, 5), '#8e74c4', T.edge, [x - 17, base - 104, x + 17, base - 99], T.edge);
+    ctx.fillStyle = '#ff9a5c'; ctx.beginPath(); ctx.moveTo(x + 2, base - 91); ctx.lineTo(x + 20, base - 87); ctx.lineTo(x + 2, base - 84); ctx.fill();
+    ctx.fillStyle = '#5a4a7a'; [[-5, -95], [6, -96]].forEach(([ox, oy]) => { ctx.beginPath(); ctx.arc(x + ox, base + oy, 1.8, 0, Math.PI * 2); ctx.fill(); });
+  };
+  // 火山：大石頭、發光水晶
+  const boulder = (ctx, x) => {
+    chalkShape(ctx, () => { ctx.moveTo(x + 42, base - 26); ctx.ellipse(x, base - 26, 42, 28, 0, 0, Math.PI * 2); }, T.bush, T.edge, [x - 42, base - 54, x + 42, base], T.edge);
+    chalkShape(ctx, () => { ctx.moveTo(x + 56, base - 14); ctx.ellipse(x + 34, base - 14, 22, 16, 0, 0, Math.PI * 2); }, T.bush, T.edge, [x + 12, base - 30, x + 56, base], T.edge);
+    ctx.strokeStyle = T.flowers[0]; ctx.lineWidth = 3; ctx.lineCap = 'round';
+    ctx.beginPath(); ctx.moveTo(x - 14, base - 40); ctx.lineTo(x - 6, base - 30); ctx.lineTo(x - 14, base - 22); ctx.stroke();
+  };
+  const crystals = (ctx, x) => [[-20, 62, 0], [0, 94, 1], [20, 54, 0]].forEach(([ox, h, c]) =>
+    chalkShape(ctx, () => { ctx.moveTo(x + ox - 11, base); ctx.lineTo(x + ox, base - h); ctx.lineTo(x + ox + 11, base); ctx.closePath(); }, T.canopy[c], T.edge, [x + ox - 11, base - h, x + ox + 11, base], T.edge));
+  const sets = {
+    meadow: (ctx, dx) => { tree(ctx, dx + 70, T.canopy[0]); bush(ctx, dx + 195); tree(ctx, dx + 320, T.canopy[1]); bush(ctx, dx + 450); },
+    beach: (ctx, dx) => { palm(ctx, dx + 60); umbrella(ctx, dx + 190); palm(ctx, dx + 320); bush(ctx, dx + 450, T.canopy[0]); },
+    snow: (ctx, dx) => { pine(ctx, dx + 70); snowman(ctx, dx + 190); pine(ctx, dx + 320); bush(ctx, dx + 450, '#ffffff'); },
+    volcano: (ctx, dx) => { boulder(ctx, dx + 70); crystals(ctx, dx + 200); boulder(ctx, dx + 320); crystals(ctx, dx + 450); }
+  };
+  chalkTexture(scene, bgKey('trees', name, T.terrain), W, 200, ctx => {
+    tiled(W, dx => sets[kind](ctx, dx));
     chalkGrain(ctx, W, 200, 1500, true);
   });
 }
 function makeGround(scene, name, T) {
-  const w = 256, flowers = Array.from({ length: 7 }, () => [rnd(10, w - 10), rnd(50, GROUND_H - 20), pick(T.flowers)]);
-  chalkTexture(scene, bgKey('ground', name), w, GROUND_H, ctx => {
+  const w = 256, kind = T.kind || 'meadow', flowers = Array.from({ length: 7 }, () => [rnd(24, w - 24), rnd(50, GROUND_H - 20), pick(T.flowers)]);
+  chalkTexture(scene, bgKey('ground', name, T.terrain), w, GROUND_H, ctx => {
     ctx.fillStyle = T.ground[0]; ctx.fillRect(0, 0, w, GROUND_H);
     ctx.fillStyle = T.ground[1]; ctx.fillRect(0, 12, w, 14);
     ctx.lineCap = 'round';
@@ -399,25 +562,98 @@ function makeGround(scene, name, T) {
       ctx.lineWidth = rnd(1.5, 3.5);
       ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(x + rnd(10, 26), y - rnd(5, 12)); ctx.stroke();
     }
-    ctx.strokeStyle = T.blade; ctx.lineWidth = 3;        // 草尖
-    for (let x = 3; x < w; x += 6) { ctx.beginPath(); ctx.moveTo(x, 16); ctx.lineTo(x + rnd(-4, 4), rnd(0, 8)); ctx.stroke(); }
-    flowers.forEach(([x, y, c]) => {
-      for (let i = 0; i < 5; i++) {
-        const a = i / 5 * Math.PI * 2;
-        ctx.fillStyle = c; ctx.beginPath(); ctx.arc(x + Math.cos(a) * 7, y + Math.sin(a) * 7, 5.5, 0, Math.PI * 2); ctx.fill();
-      }
-      ctx.fillStyle = '#ffe98a'; ctx.beginPath(); ctx.arc(x, y, 4.5, 0, Math.PI * 2); ctx.fill();
-    });
-    ctx.fillStyle = 'rgba(230,220,245,.9)';              // 小石頭
-    [[40, GROUND_H - 40], [170, GROUND_H - 70], [230, GROUND_H - 25]].forEach(([x, y]) => { ctx.beginPath(); ctx.ellipse(x, y, 9, 6, 0, 0, Math.PI * 2); ctx.fill(); });
+    if (kind === 'meadow') {
+      ctx.strokeStyle = T.blade; ctx.lineWidth = 3;        // 草尖
+      for (let x = 3; x < w; x += 6) { ctx.beginPath(); ctx.moveTo(x, 16); ctx.lineTo(x + rnd(-4, 4), rnd(0, 8)); ctx.stroke(); }
+      flowers.forEach(([x, y, c]) => {
+        for (let i = 0; i < 5; i++) {
+          const a = i / 5 * Math.PI * 2;
+          ctx.fillStyle = c; ctx.beginPath(); ctx.arc(x + Math.cos(a) * 7, y + Math.sin(a) * 7, 5.5, 0, Math.PI * 2); ctx.fill();
+        }
+        ctx.fillStyle = '#ffe98a'; ctx.beginPath(); ctx.arc(x, y, 4.5, 0, Math.PI * 2); ctx.fill();
+      });
+      ctx.fillStyle = 'rgba(230,220,245,.9)';              // 小石頭
+      [[40, GROUND_H - 40], [170, GROUND_H - 70], [230, GROUND_H - 25]].forEach(([x, y]) => { ctx.beginPath(); ctx.ellipse(x, y, 9, 6, 0, 0, Math.PI * 2); ctx.fill(); });
+    } else if (kind === 'beach') {                         // 沙灘：波浪紋、貝殼與海星
+      ctx.strokeStyle = 'rgba(255,255,255,.6)'; ctx.lineWidth = 3;
+      [[20, 50], [150, 78], [60, 100], [180, 118]].forEach(([x, y]) => {
+        ctx.beginPath(); for (let i = 0; i <= 40; i += 4) ctx[i ? 'lineTo' : 'moveTo'](x + i, y + Math.sin(i / 6) * 3); ctx.stroke();
+      });
+      flowers.forEach(([x, y, c], i) => {
+        ctx.fillStyle = c;
+        if (i % 2) {                                       // 海星
+          ctx.beginPath();
+          for (let k = 0; k < 10; k++) { const a = k / 10 * Math.PI * 2 - Math.PI / 2, r = k % 2 ? 4 : 9; ctx[k ? 'lineTo' : 'moveTo'](x + Math.cos(a) * r, y + Math.sin(a) * r); }
+          ctx.closePath(); ctx.fill();
+        } else {                                           // 扇貝
+          ctx.beginPath(); ctx.arc(x, y, 8, Math.PI, 0); ctx.closePath(); ctx.fill();
+          ctx.strokeStyle = 'rgba(150,100,120,.35)'; ctx.lineWidth = 1.5;
+          [-4, 0, 4].forEach(o => { ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(x + o * 1.6, y - 7); ctx.stroke(); });
+        }
+      });
+    } else if (kind === 'snow') {                          // 雪地：閃閃的雪花與小冰塊
+      ctx.strokeStyle = '#ffffff'; ctx.lineWidth = 2.5;
+      flowers.forEach(([x, y], i) => {
+        const s = 5 + (i % 3) * 2, d = s * .7;
+        ctx.beginPath();
+        ctx.moveTo(x - s, y); ctx.lineTo(x + s, y); ctx.moveTo(x, y - s); ctx.lineTo(x, y + s);
+        ctx.moveTo(x - d, y - d); ctx.lineTo(x + d, y + d); ctx.moveTo(x - d, y + d); ctx.lineTo(x + d, y - d);
+        ctx.stroke();
+      });
+      ctx.fillStyle = 'rgba(190,215,245,.7)';
+      [[40, GROUND_H - 40], [170, GROUND_H - 70], [230, GROUND_H - 25]].forEach(([x, y]) => { ctx.beginPath(); ctx.ellipse(x, y, 11, 6, 0, 0, Math.PI * 2); ctx.fill(); });
+    } else {                                               // 火山：發光的岩漿裂縫與火星
+      [[30, 56], [140, 84], [60, 112]].forEach(([x, y]) => {
+        const pts = [[0, 0], [14, 7], [26, -3], [42, 6], [56, 0]].map(([ox, oy]) => [x + ox, y + oy]);
+        [[9, 'rgba(255,170,100,.3)'], [3.5, T.flowers[0]]].forEach(([lw, c]) => {
+          ctx.strokeStyle = c; ctx.lineWidth = lw; ctx.beginPath(); pts.forEach(([px, py], i) => ctx[i ? 'lineTo' : 'moveTo'](px, py)); ctx.stroke();
+        });
+      });
+      flowers.forEach(([x, y, c]) => { ctx.fillStyle = c; ctx.beginPath(); ctx.arc(x, y, 2.5, 0, Math.PI * 2); ctx.fill(); });
+    }
     chalkGrain(ctx, w, GROUND_H, 3500, false);
   });
 }
 
+// ---- 地形：草原（原本的樣子）、海邊、火山、雪地 ----
+// 只換山、丘陵、樹和地面，天空仍是目前的時段；顏色會跟著時段調暗或偏暖，才不會在夜晚突然變亮
+const TERRAINS = {
+  meadow: { name: '草原', icon: '🌳' },
+  beach: { name: '海邊', icon: '🏖️', kind: 'beach', colors: {
+    mountains: ['#bfe4f3', '#a3d3ee'], hills: ['#ffefc8', '#f9dfa8'], canopy: ['#8fdcaa', '#6fcb9c'], bush: '#8fdcaa', trunk: '#d9b48a',
+    ground: ['#fbe8b6', '#f3d89c'], blade: '#f0d08e', shade: 'rgba(200,150,70,.12)', flowers: ['#ffb3c7', '#ffffff', '#ffd0a8', '#c9e8ff'] } },
+  volcano: { name: '火山', icon: '🌋', kind: 'volcano', colors: {
+    mountains: ['#c9a8bc', '#a98aa6'], hills: ['#b79cae', '#9c8296'], canopy: ['#e49ab8', '#8fc3e6'], bush: '#8a7488', trunk: '#6d5870',
+    ground: ['#a68fa0', '#957d92'], blade: '#b59fb0', shade: 'rgba(70,40,70,.16)', flowers: ['#ff9a5c', '#ffd36b', '#ff7f7f', '#ffe9a8'], capFill: '#ffa86b' } },
+  snow: { name: '雪地', icon: '⛄', kind: 'snow', colors: {
+    mountains: ['#e5eefc', '#c8d9f2'], hills: ['#f6faff', '#dfeaf9'], canopy: ['#7fc9ae', '#6fb8a8'], bush: '#ffffff', trunk: '#b79a86',
+    ground: ['#f4f9ff', '#e0ebfa'], blade: '#ffffff', shade: 'rgba(120,150,200,.14)', flowers: ['#ffffff', '#cfe6ff', '#e8f2ff', '#bfdcff'], capFill: '#ffffff' } }
+};
+const SCENE_TINT = { day: null, morning: ['#ffd9b0', 0.15], sunset: ['#ff9a7a', 0.25], night: ['#3a46a0', 0.5] };
+function mixHex(a, b, t) {
+  const p = h => [1, 3, 5].map(i => parseInt(h.slice(i, i + 2), 16));
+  const [x, y] = [p(a), p(b)];
+  return '#' + x.map((v, i) => Math.round(v + (y[i] - v) * t).toString(16).padStart(2, '0')).join('');
+}
+function terrainTheme(name, terrain) {
+  const def = TERRAINS[terrain], tint = SCENE_TINT[name];
+  const fix = v => Array.isArray(v) ? v.map(fix) : (tint && typeof v === 'string' && v[0] === '#') ? mixHex(v, tint[0], tint[1]) : v;
+  const colors = {};
+  Object.entries(def.colors).forEach(([k, v]) => colors[k] = fix(v));
+  return { ...SCENES[name], ...colors, terrain, kind: def.kind };
+}
+function ensureTerrain(scene, terrain) {
+  if (terrain === 'meadow' || scene.textures.exists(bgKey('ground', look.scene, terrain))) return;
+  const T = terrainTheme(look.scene, terrain);
+  makeMountains(scene, look.scene, T); makeHills(scene, look.scene, T); makeTrees(scene, look.scene, T); makeGround(scene, look.scene, T);
+}
+
 // 背景圖層（標題、結束、遊戲共用）；回傳各層，遊戲場景用來做視差捲動
+// 圖層用負的 depth 固定先後順序，之後換地形時新圖層才能插在正確的位置
+const LAYER_DEPTH = { sky: -10, clouds: -9, mountains: -8, hills: -7, trees: -6, ground: -5 };
 function addBackdrop(scene) {
-  scene.add.image(0, 0, bgKey('sky')).setOrigin(0);
-  const layer = (y, h, key) => scene.add.tileSprite(0, y, W, h, bgKey(key)).setOrigin(0);
+  scene.add.image(0, 0, bgKey('sky')).setOrigin(0).setDepth(LAYER_DEPTH.sky);
+  const layer = (y, h, key) => scene.add.tileSprite(0, y, W, h, bgKey(key)).setOrigin(0).setDepth(LAYER_DEPTH[key]);
   return {
     clouds: layer(90, 260, 'clouds'),
     mountains: layer(GROUND - 300, 300, 'mountains'),
@@ -425,4 +661,22 @@ function addBackdrop(scene) {
     trees: layer(GROUND - 192, 200, 'trees'),
     ground: layer(GROUND - 6, GROUND_H, 'ground')
   };
+}
+// 換地形：新的山、丘陵、樹、地面疊在舊的上面，淡入的同時舊的淡出
+// scrollers 是 [{sp, f}]（f 是視差倍率），新圖層會加進去繼續捲動，舊的淡出後移除
+function swapTerrain(scene, layers, scrollers, terrain) {
+  ensureTerrain(scene, terrain);
+  ['mountains', 'hills', 'trees', 'ground'].forEach(k => {
+    const old = layers[k];
+    const sp = scene.add.tileSprite(old.x, old.y, old.width, old.height, bgKey(k, look.scene, terrain)).setOrigin(0).setDepth(LAYER_DEPTH[k] + 0.5).setAlpha(0);
+    sp.tilePositionX = old.tilePositionX;
+    scrollers.push({ sp, f: scrollers.find(s => s.sp === old).f });
+    layers[k] = sp;
+    scene.tweens.add({ targets: sp, alpha: 1, duration: 1600 });
+    scene.tweens.add({ targets: old, alpha: 0, duration: 1600, onComplete: () => {
+      const j = scrollers.findIndex(s => s.sp === old);
+      if (j >= 0) scrollers.splice(j, 1);
+      old.destroy(); sp.setDepth(LAYER_DEPTH[k]);
+    } });
+  });
 }
