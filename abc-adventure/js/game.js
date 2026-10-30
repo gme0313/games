@@ -842,7 +842,7 @@ class BonusScene extends Phaser.Scene {
 // ============ 場景：結束（統計總分）============
 class EndScene extends Phaser.Scene {
   constructor() { super('End'); }
-  create({ score, max, again = 'Walk', head = '總分', unit = '分', msg = `你拿到 ${score} 分，真棒！` }) {
+  create({ score, max, again = 'Walk', againData, head = '總分', unit = '分', msg = `你拿到 ${score} 分，真棒！` }) {
     addBackdrop(this);
     const rate = score / max;
     const hero = this.add.sprite(W / 2, GROUND, tex('heroCheer')).setOrigin(0.5, 1).setScale(1.5);
@@ -863,7 +863,7 @@ class EndScene extends Phaser.Scene {
       this.tweens.add({ targets: s, scale: 1, duration: 350, delay: 1400 + i * 150, ease: 'Back.out' });
     }
 
-    button(this, W / 2, 790, 320, 84, COLORS[1], '🔁 再玩一次', 40, () => { sayId++; rollLook(); this.scene.start(again); });
+    button(this, W / 2, 790, 320, 84, COLORS[1], '🔁 再玩一次', 40, () => { sayId++; rollLook(); this.scene.start(again, againData); });
     button(this, W / 2, 890, 320, 84, COLORS[4], '🏠 回首頁', 40, () => { sayId++; this.scene.start('Title'); });
     this.cameras.main.fadeIn(500, 255, 230, 245);
     beep([523, 659, 784, 1046]); confetti(this);
@@ -1038,17 +1038,23 @@ class FeedScene extends Phaser.Scene {
 
 // ============ 場景：描字母（用手指沿著虛線字母描，描滿就過關）============
 // 每局 6 個字母（大小寫各 3 個）。只能在字母附近畫得出線，所以亂塗不會過關；筆順不限制
-const TRACE_ROUNDS = 6, TRACE_Y = 470, TRACE_NEED = .8;
+const TRACE_ROUNDS = 6, TRACE_Y = 470, TRACE_NEED = .7;
 const TRACE_BRUSH = 22, TRACE_BAND = 70;    // 畫筆半徑；可畫範圍＝字母往外加粗到 TRACE_BAND 的寬度（畫出來的顏色只會留在字母裡面）
+// 注音符號 37 個（不含聲調）
+const BOPOMOFO = [...'ㄅㄆㄇㄈㄉㄊㄋㄌㄍㄎㄏㄐㄑㄒㄓㄔㄕㄖㄗㄘㄙㄧㄨㄩㄚㄛㄜㄝㄞㄟㄠㄡㄢㄣㄤㄥㄦ'];
 const TRACE_INK = ['#ff9db8', '#8fd0f5', '#8fe0b4', '#ffc46b', '#c3a4f2', '#ffa98a'];
 class TraceScene extends Phaser.Scene {
   constructor() { super('Trace'); }
-  create() {
+  create(data = {}) {
     ensureLook(this);
     addBackdrop(this);
+    if (!data.mode) { this.menu(); return; }   // 進場先選要描英文字母還是注音符號
+    this.mode = data.mode;
     this.round = -1; this.done = 0; this.state = 'idle'; this.left = false; this.last = null;
     const cases = shuffle([true, true, true, false, false, false]);
-    this.qs = shuffle(ALPHABET).slice(0, TRACE_ROUNDS).map((letter, i) => ({ letter, upper: cases[i] }));
+    this.qs = this.mode === 'zh'
+      ? shuffle(BOPOMOFO).slice(0, TRACE_ROUNDS).map(letter => ({ letter, upper: true }))
+      : shuffle(ALPHABET).slice(0, TRACE_ROUNDS).map((letter, i) => ({ letter, upper: cases[i] }));
 
     // 字母範本與手指畫的線各用一張貼圖，疊在背景上
     ['traceTpl', 'traceInk'].forEach(k => { if (this.textures.exists(k)) this.textures.remove(k); });
@@ -1079,13 +1085,26 @@ class TraceScene extends Phaser.Scene {
     const q = this.q = this.qs[this.round];
     this.ch = q.upper ? q.letter : q.letter.toLowerCase();
     this.progress.setText(`${this.round + 1}/${TRACE_ROUNDS}`);
-    this.title.setText(`${q.upper ? '大寫' : '小寫'} ${this.ch}`);
+    this.title.setText(this.mode === 'zh' ? `注音 ${this.ch}` : `${q.upper ? '大寫' : '小寫'} ${this.ch}`);
     this.hero.setTexture(tex('heroIdle'));
     this.setupLetter();
     this.state = 'trace';
     this.speakQuestion();
   }
-  speakQuestion() { say([[this.q.upper ? '描一描' : '描一描小寫的', 'zh-TW'], [this.ch, 'en-US']]); }
+  speakQuestion() {
+    if (this.mode === 'zh') say([['描一描', 'zh-TW'], [this.ch, 'zh-TW']]);
+    else say([[this.q.upper ? '描一描' : '描一描小寫的', 'zh-TW'], [this.ch, 'en-US']]);
+  }
+  menu() {
+    txt(this, W / 2, 170, '描字母', 80, '#ffffff').setStroke('#b99be0', 12);
+    txt(this, W / 2, 270, '想描哪一種？', 40).setStroke('#ffffff', 8);
+    const go = mode => () => { say([[mode === 'zh' ? '注音符號' : 'ABC', mode === 'zh' ? 'zh-TW' : 'en-US']]); this.scene.restart({ mode }); };
+    button(this, W / 2, 440, 400, 140, COLORS[0], '🔤 英文字母', 50, go('en'));
+    button(this, W / 2, 620, 400, 140, COLORS[3], 'ㄅㄆㄇ 注音', 50, go('zh'));
+    button(this, 50, 50, 64, 64, 0xc3a4f2, '🏠', 30, () => this.scene.start('Title'));
+    this.cameras.main.fadeIn(300, 255, 230, 245);
+    say([['想描哪一種？', 'zh-TW']]);
+  }
 
   // 算出字母的位置，並建立「要描的點」與「可以畫的範圍」
   setupLetter() {
@@ -1167,14 +1186,14 @@ class TraceScene extends Phaser.Scene {
     k.fillStyle = TRACE_INK[this.round % TRACE_INK.length]; k.fillText(this.ch, this.lx, this.ly); this.flushInk();
     this.hero.setTexture(tex('heroCheer'));
     beep([523, 659, 784]); popper(this, this.hero);
-    const voice = say([[`${this.ch}!`, 'en-US'], [pick(PRAISE), 'zh-TW']]);
+    const voice = say(this.mode === 'zh' ? [[pick(PRAISE), 'zh-TW']] : [[`${this.ch}!`, 'en-US'], [pick(PRAISE), 'zh-TW']]);
     Promise.all([voice, new Promise(r => this.time.delayedCall(1900, r))]).then(() => this.next());
   }
   finish() {
     this.state = 'end';
     this.cameras.main.fadeOut(600, 255, 230, 245);
     this.cameras.main.once('camerafadeoutcomplete', () => this.scene.start('End', {
-      score: this.done, max: TRACE_ROUNDS, again: 'Trace', head: '完成', unit: '個字母', msg: `你描了 ${this.done} 個字母，真棒！`
+      score: this.done, max: TRACE_ROUNDS, again: 'Trace', againData: { mode: this.mode }, head: '完成', unit: this.mode === 'zh' ? '個注音' : '個字母', msg: `你描了 ${this.done} 個${this.mode === 'zh' ? '注音符號' : '字母'}，真棒！`
     }));
   }
 }
