@@ -1038,7 +1038,7 @@ class FeedScene extends Phaser.Scene {
 
 // ============ 場景：描字母（用手指沿著虛線字母描，描滿就過關）============
 // 每局 6 個字母（大小寫各 3 個）。只能在字母附近畫得出線，所以亂塗不會過關；筆順不限制
-const TRACE_ROUNDS = 6, TRACE_Y = 470, TRACE_NEED = .7;
+const TRACE_ROUNDS = 6, TRACE_Y = 470, TRACE_NEED = .8;
 const TRACE_BRUSH = 22, TRACE_BAND = 70;    // 畫筆半徑；可畫範圍＝字母往外加粗到 TRACE_BAND 的寬度（畫出來的顏色只會留在字母裡面）
 // 注音符號 37 個（不含聲調）
 const BOPOMOFO = [...'ㄅㄆㄇㄈㄉㄊㄋㄌㄍㄎㄏㄐㄑㄒㄓㄔㄕㄖㄗㄘㄙㄧㄨㄩㄚㄛㄜㄝㄞㄟㄠㄡㄢㄣㄤㄥㄦ'];
@@ -1193,7 +1193,7 @@ class TraceScene extends Phaser.Scene {
     this.state = 'end';
     this.cameras.main.fadeOut(600, 255, 230, 245);
     this.cameras.main.once('camerafadeoutcomplete', () => this.scene.start('End', {
-      score: this.done, max: TRACE_ROUNDS, again: 'Trace', againData: { mode: this.mode }, head: '完成', unit: this.mode === 'zh' ? '個注音' : '個字母', msg: `你描了 ${this.done} 個${this.mode === 'zh' ? '注音符號' : '字母'}，真棒！`
+      score: this.done, max: TRACE_ROUNDS, again: 'Trace', head: '完成', unit: this.mode === 'zh' ? '個注音' : '個字母', msg: `你描了 ${this.done} 個${this.mode === 'zh' ? '注音符號' : '字母'}，真棒！`
     }));
   }
 }
