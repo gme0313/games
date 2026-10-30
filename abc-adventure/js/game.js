@@ -227,7 +227,7 @@ class TitleScene extends Phaser.Scene {
     const go = (scene, hello) => () => {
       say([[hello, 'en-US']]);        // 第一次點擊會解鎖語音
       this.cameras.main.fadeOut(400, 255, 230, 245);
-      this.cameras.main.once('camerafadeoutcomplete', () => this.scene.start(scene));
+      this.cameras.main.once('camerafadeoutcomplete', () => this.scene.start(scene, {}));   // 一定要傳資料：沒傳的話 Phaser 會沿用上一次的資料（描字母就會直接進上次選的模式）
     };
     button(this, W / 2, 255, 380, 88, COLORS[0], '🦖 冒險之旅', 44, go('Walk', "Let's go!"));
     button(this, W / 2, 360, 380, 88, COLORS[3], '🍎 餵恐龍', 44, go('Feed', "I'm hungry!"));
@@ -863,7 +863,7 @@ class EndScene extends Phaser.Scene {
       this.tweens.add({ targets: s, scale: 1, duration: 350, delay: 1400 + i * 150, ease: 'Back.out' });
     }
 
-    button(this, W / 2, 790, 320, 84, COLORS[1], '🔁 再玩一次', 40, () => { sayId++; rollLook(); this.scene.start(again, againData); });
+    button(this, W / 2, 790, 320, 84, COLORS[1], '🔁 再玩一次', 40, () => { sayId++; rollLook(); this.scene.start(again, againData || {}); });
     button(this, W / 2, 890, 320, 84, COLORS[4], '🏠 回首頁', 40, () => { sayId++; this.scene.start('Title'); });
     this.cameras.main.fadeIn(500, 255, 230, 245);
     beep([523, 659, 784, 1046]); confetti(this);
