@@ -29,7 +29,7 @@ const WORDS = {
   F: [['Fish', '魚', '🐟'], ['Frog', '青蛙', '🐸'], ['Flower', '花', '🌸'], ['Fox', '狐狸', '🦊'],
       ['Fire', '火', '🔥'], ['Flag', '旗子', '🚩'], ['Fork', '叉子', '🍴'], ['French fries', '薯條', '🍟'],
       ['Fairy', '仙女', '🧚'], ['Fountain', '噴水池', '⛲'], ['Finger', '手指', '☝️'], ['Foot', '腳', '🦶'],
-      ['Football', '橄欖球', '🏈'], ['Flamingo', '紅鶴', '🦩'], ['Fire truck', '消防車', '🚒'], ['Fireworks', '煙火', '🎆']],
+      ['Football', '橄欖球', '🏈'], ['Flamingo', '紅鶴', '🦩'], ['Fire truck', '消防車', '🚒'], ['Fireworks', '煙火', '🎆'], ['Four', '四', '4️⃣'], ['Five', '五', '5️⃣']],
   G: [['Grapes', '葡萄', '🍇'], ['Giraffe', '長頸鹿', '🦒'], ['Guitar', '吉他', '🎸'], ['Gift', '禮物', '🎁'],
       ['Ghost', '小幽靈', '👻'], ['Goat', '山羊', '🐐'], ['Gorilla', '大猩猩', '🦍'], ['Garden', '花園', '🏡'],
       ['Glasses', '眼鏡', '👓'], ['Gloves', '手套', '🧤'], ['Garlic', '大蒜', '🧄'], ['Goldfish', '金魚', '🐠'], ['Green', '綠色', '🟢']],
@@ -57,14 +57,14 @@ const WORDS = {
       ['Newspaper', '報紙', '📰'], ['Notebook', '筆記本', '📓'], ['Night', '夜晚', '🌃'],
       ['Numbers', '數字', '🔢'], ['Nine', '九', '9️⃣']],
   O: [['Orange', '柳橙', '🍊'], ['Octopus', '章魚', '🐙'], ['Owl', '貓頭鷹', '🦉'], ['Onion', '洋蔥', '🧅'],
-      ['Ocean', '海洋', '🌊'], ['Ox', '公牛', '🐂'], ['Office', '辦公室', '🏢']],
+      ['Ocean', '海洋', '🌊'], ['Ox', '公牛', '🐂'], ['Office', '辦公室', '🏢'], ['One', '一', '1️⃣']],
   P: [['Pig', '小豬', '🐷'], ['Panda', '貓熊', '🐼'], ['Pizza', '披薩', '🍕'], ['Penguin', '企鵝', '🐧'],
       ['Peach', '水蜜桃', '🍑'], ['Pear', '梨子', '🍐'], ['Pineapple', '鳳梨', '🍍'], ['Pencil', '鉛筆', '✏️'],
       ['Piano', '鋼琴', '🎹'], ['Pumpkin', '南瓜', '🎃'], ['Popcorn', '爆米花', '🍿'], ['Pretzel', '蝴蝶餅', '🥨'],
       ['Purse', '小錢包', '👛'], ['Parrot', '鸚鵡', '🦜'], ['Peacock', '孔雀', '🦚'], ['Pancakes', '鬆餅', '🥞'],
       ['Paw', '腳印', '🐾'], ['Phone', '手機', '📱'], ['Police car', '警車', '🚓'], ['Pin', '圖釘', '📌'],
       ['Paint', '調色盤', '🎨'], ['Palm tree', '椰子樹', '🌴'], ['Pasta', '義大利麵', '🍝'],
-      ['Pen', '原子筆', '🖊️'], ['Paperclip', '迴紋針', '📎'], ['Purple', '紫色', '🟣']],
+      ['Pen', '原子筆', '🖊️'], ['Paperclip', '迴紋針', '📎'], ['Purple', '紫色', '🟣'], ['Pink', '粉紅色', '💗']],
   Q: [['Queen', '皇后', '👸'], ['Question mark', '問號', '❓'], ['Quiet', '安靜', '🤫']],
   R: [['Rabbit', '兔子', '🐰'], ['Rainbow', '彩虹', '🌈'], ['Robot', '機器人', '🤖'], ['Rain', '下雨', '🌧️'],
       ['Ring', '戒指', '💍'], ['Rocket', '火箭', '🚀'], ['Rose', '玫瑰', '🌹'], ['Rooster', '公雞', '🐓'],
@@ -76,13 +76,13 @@ const WORDS = {
       ['Socks', '襪子', '🧦'], ['Sandwich', '三明治', '🥪'], ['Ship', '大船', '🚢'], ['Scissors', '剪刀', '✂️'],
       ['Sunflower', '向日葵', '🌻'], ['Sushi', '壽司', '🍣'], ['Spoon', '湯匙', '🥄'], ['Soup', '湯', '🍲'],
       ['Shell', '貝殼', '🐚'], ['Saxophone', '薩克斯風', '🎷'], ['Skateboard', '滑板', '🛹'], ['Snowflake', '雪花', '❄️'],
-      ['Sofa', '沙發', '🛋️']],
+      ['Sofa', '沙發', '🛋️'], ['Six', '六', '6️⃣'], ['Seven', '七', '7️⃣']],
   T: [['Tiger', '老虎', '🐯'], ['Tree', '樹', '🌳'], ['Train', '火車', '🚆'], ['Turtle', '烏龜', '🐢'],
       ['Tomato', '番茄', '🍅'], ['Taxi', '計程車', '🚕'], ['Tractor', '拖拉機', '🚜'], ['Truck', '卡車', '🚚'],
       ['Tent', '帳篷', '⛺'], ['Telephone', '電話', '☎️'], ['Television', '電視', '📺'], ['Tooth', '牙齒', '🦷'],
       ['Tornado', '龍捲風', '🌪️'], ['Trumpet', '小喇叭', '🎺'], ['Turkey', '火雞', '🦃'], ['Tulip', '鬱金香', '🌷'],
       ['Teddy bear', '泰迪熊', '🧸'], ['Tea', '茶', '🍵'], ['Tongue', '舌頭', '👅'], ['Trophy', '獎盃', '🏆'],
-      ['Tennis', '網球', '🎾'], ['Telescope', '望遠鏡', '🔭']],
+      ['Tennis', '網球', '🎾'], ['Telescope', '望遠鏡', '🔭'], ['Two', '二', '2️⃣'], ['Three', '三', '3️⃣'], ['Ten', '十', '🔟']],
   U: [['Umbrella', '雨傘', '☂️'], ['Unicorn', '獨角獸', '🦄'], ['UFO', '飛碟', '🛸'], ['Up', '向上', '⬆️']],
   V: [['Violin', '小提琴', '🎻'], ['Volcano', '火山', '🌋'], ['Van', '廂型車', '🚐'], ['Vase', '花瓶', '🏺'],
       ['Volleyball', '排球', '🏐'], ['Video game', '電動遊戲', '🎮']],
@@ -94,10 +94,11 @@ const WORDS = {
 };
 
 // 「看英文選圖片」只出這些常見、好認的單字：交通工具、蔬菜水果、日常用品、顏色、文具
-// 顏色題的干擾選項也只會是其他顏色（見 game.js 的 wordOthers）
-const COLOR_NAMES = ['Red', 'Blue', 'Yellow', 'Green', 'Purple', 'Black', 'White', 'Brown'];
+// 顏色題、數字題（Zero～Ten）的干擾選項也只會是同一類（其他顏色／其他數字）（見 game.js 的 wordOthers）
+const COLOR_NAMES = ['Red', 'Blue', 'Yellow', 'Green', 'Purple', 'Black', 'White', 'Brown', 'Pink'];
+const NUMBER_NAMES = ['Zero', 'One', 'Two', 'Three', 'Four', 'Five', 'Six', 'Seven', 'Eight', 'Nine', 'Ten'];
 const PIC_WORDS = new Set([
-  ...COLOR_NAMES,
+  ...COLOR_NAMES, ...NUMBER_NAMES,
   // 交通工具
   'Airplane', 'Ambulance', 'Bicycle', 'Boat', 'Bus', 'Car', 'Fire truck', 'Helicopter', 'Motorcycle', 'Police car',
   'Rocket', 'Ship', 'Taxi', 'Tractor', 'Train', 'Truck',

@@ -221,17 +221,18 @@ class TitleScene extends Phaser.Scene {
     if (!data || !data.keep) rollLook();   // 每次回到標題就隨機換一組顏色與時段（從選角畫面回來時不換）
     ensureLook(this);
     addBackdrop(this);
-    txt(this, W / 2, 190, 'ABC 冒險', 76, '#ffffff').setStroke('#b99be0', 12);
-    const hero = this.add.sprite(W / 2, GROUND + 20, tex('heroIdle')).setOrigin(0.5, 1).setScale(1.7);
-    this.tweens.add({ targets: hero, scaleY: 1.75, duration: 700, yoyo: true, repeat: -1, ease: 'Sine.inOut' });
+    txt(this, W / 2, 150, 'ABC 冒險', 76, '#ffffff').setStroke('#b99be0', 12);
+    const hero = this.add.sprite(W / 2, GROUND + 60, tex('heroIdle')).setOrigin(0.5, 1).setScale(1.45);
+    this.tweens.add({ targets: hero, scaleY: 1.5, duration: 700, yoyo: true, repeat: -1, ease: 'Sine.inOut' });
     const go = (scene, hello) => () => {
       say([[hello, 'en-US']]);        // 第一次點擊會解鎖語音
       this.cameras.main.fadeOut(400, 255, 230, 245);
       this.cameras.main.once('camerafadeoutcomplete', () => this.scene.start(scene));
     };
-    button(this, W / 2, 310, 380, 92, COLORS[0], '🦖 冒險之旅', 46, go('Walk', "Let's go!"));
-    button(this, W / 2, 420, 380, 92, COLORS[3], '🍎 餵恐龍', 46, go('Feed', "I'm hungry!"));
-    button(this, W / 2, 520, 300, 66, COLORS[1], `🔄 換主角（${CHARS[look.char].name}）`, 28, () => this.scene.start('Select'));
+    button(this, W / 2, 255, 380, 88, COLORS[0], '🦖 冒險之旅', 44, go('Walk', "Let's go!"));
+    button(this, W / 2, 360, 380, 88, COLORS[3], '🍎 餵恐龍', 44, go('Feed', "I'm hungry!"));
+    button(this, W / 2, 465, 380, 88, COLORS[2], '✏️ 描字母', 44, go('Trace', "Let's trace!"));
+    button(this, W / 2, 555, 300, 60, COLORS[1], `🔄 換主角（${CHARS[look.char].name}）`, 28, () => this.scene.start('Select'));
     const note = button(this, W - 50, 50, 64, 64, 0xc3a4f2, music.on ? '🎵' : '🔇', 30, () => {
       note.list[1].setText(music.toggle() ? '🎵' : '🔇');
     });
@@ -351,8 +352,8 @@ function caseOthers(letter, upper) {
 const similar = (a, b) => SIMILAR.some(g => g.includes(a) && g.includes(b));
 // 顏色題的干擾項只會是其他顏色，其他題則不出現顏色
 function wordOthers(q) {
-  const isColor = COLOR_NAMES.includes(q.en);
-  const all = Object.values(WORDS).flat().filter(w => PIC_WORDS.has(w[0]) && COLOR_NAMES.includes(w[0]) === isColor);
+  const group = en => COLOR_NAMES.includes(en) ? 'color' : NUMBER_NAMES.includes(en) ? 'number' : 'other';   // 顏色配顏色、數字配數字
+  const all = Object.values(WORDS).flat().filter(w => PIC_WORDS.has(w[0]) && group(w[0]) === group(q.en));
   return shuffle(all.filter(w => w[0][0].toUpperCase() !== q.letter && !similar(w[0], q.en))).slice(0, 2);
 }
 
@@ -841,7 +842,7 @@ class BonusScene extends Phaser.Scene {
 // ============ 場景：結束（統計總分）============
 class EndScene extends Phaser.Scene {
   constructor() { super('End'); }
-  create({ score, max, again = 'Walk' }) {
+  create({ score, max, again = 'Walk', head = '總分', unit = '分', msg = `你拿到 ${score} 分，真棒！` }) {
     addBackdrop(this);
     const rate = score / max;
     const hero = this.add.sprite(W / 2, GROUND, tex('heroCheer')).setOrigin(0.5, 1).setScale(1.5);
@@ -851,9 +852,9 @@ class EndScene extends Phaser.Scene {
 
     const title = txt(this, W / 2, 75, rate >= 0.8 ? '太棒了！🎉' : rate >= 0.5 ? '好棒喔！🎉' : '好努力喔！🌟', 64, '#ffffff').setStroke('#b99be0', 12);
     this.tweens.add({ targets: title, scale: 1.08, duration: 600, yoyo: true, repeat: -1, ease: 'Sine.inOut' });
-    txt(this, W / 2, 150, '總分', 38).setStroke('#ffffff', 8);
+    txt(this, W / 2, 150, head, 38).setStroke('#ffffff', 8);
     const num = txt(this, W / 2, 245, '0', 110, '#f06a9b').setStroke('#ffffff', 10);
-    txt(this, W / 2, 325, `/ ${max} 分`, 40).setStroke('#ffffff', 8);
+    txt(this, W / 2, 325, `/ ${max} ${unit}`, 40).setStroke('#ffffff', 8);
     this.tweens.addCounter({ from: 0, to: score, duration: 1400, onUpdate: tw => num.setText(String(Math.round(tw.getValue()))) });
 
     const full = Math.max(1, Math.round(rate * 5));   // 5 顆星裡亮幾顆
@@ -867,7 +868,7 @@ class EndScene extends Phaser.Scene {
     this.cameras.main.fadeIn(500, 255, 230, 245);
     beep([523, 659, 784, 1046]); confetti(this);
     this.time.addEvent({ delay: 1800, loop: true, callback: () => confetti(this) });
-    say([['You did it!', 'en-US'], [`你得到 ${score} 分，真棒！`, 'zh-TW']]);
+    say([['You did it!', 'en-US'], [msg, 'zh-TW']]);
   }
 }
 
@@ -1035,8 +1036,151 @@ class FeedScene extends Phaser.Scene {
   }
 }
 
+// ============ 場景：描字母（用手指沿著虛線字母描，描滿就過關）============
+// 每局 6 個字母（大小寫各 3 個）。只能在字母附近畫得出線，所以亂塗不會過關；筆順不限制
+const TRACE_ROUNDS = 6, TRACE_Y = 470, TRACE_NEED = .8;
+const TRACE_BRUSH = 22, TRACE_BAND = 70;    // 畫筆半徑；可畫範圍＝字母往外加粗到 TRACE_BAND 的寬度（畫出來的顏色只會留在字母裡面）
+const TRACE_INK = ['#ff9db8', '#8fd0f5', '#8fe0b4', '#ffc46b', '#c3a4f2', '#ffa98a'];
+class TraceScene extends Phaser.Scene {
+  constructor() { super('Trace'); }
+  create() {
+    ensureLook(this);
+    addBackdrop(this);
+    this.round = -1; this.done = 0; this.state = 'idle'; this.left = false; this.last = null;
+    const cases = shuffle([true, true, true, false, false, false]);
+    this.qs = shuffle(ALPHABET).slice(0, TRACE_ROUNDS).map((letter, i) => ({ letter, upper: cases[i] }));
+
+    // 字母範本與手指畫的線各用一張貼圖，疊在背景上
+    ['traceTpl', 'traceInk'].forEach(k => { if (this.textures.exists(k)) this.textures.remove(k); });
+    this.tpl = this.textures.createCanvas('traceTpl', W, H); this.add.image(0, 0, 'traceTpl').setOrigin(0).setDepth(2);
+    this.ink = this.textures.createCanvas('traceInk', W, H); this.add.image(0, 0, 'traceInk').setOrigin(0).setDepth(3);
+
+    button(this, 50, 50, 64, 64, 0xc3a4f2, '🏠', 30, () => { this.left = true; sayId++; if (hasTTS) speechSynthesis.cancel(); this.scene.start('Title'); }).setDepth(20);
+    this.progress = txt(this, W - 70, 50, '', 30).setStroke('#ffffff', 7).setDepth(20);
+    this.title = txt(this, W / 2, 130, '', 54, '#ffffff').setStroke('#b99be0', 11).setDepth(20);
+    this.bar = this.add.graphics().setDepth(20);
+
+    this.hero = this.add.sprite(W / 2, 945, tex('heroIdle')).setOrigin(.5, 1).setScale(.9).setDepth(5);
+    this.tweens.add({ targets: this.hero, y: 940, duration: 700, yoyo: true, repeat: -1, ease: 'Sine.inOut' });
+    button(this, 110, 870, 180, 70, COLORS[1], '🧹 重描', 28, () => { if (this.state === 'trace') this.drawTemplate(); }).setDepth(20);
+    button(this, 430, 870, 180, 70, COLORS[4], '➡ 下一個', 28, () => { if (this.state === 'trace') { this.state = 'skip'; sayId++; this.next(); } }).setDepth(20);
+
+    this.input.on('pointerdown', p => this.stroke(p, true));
+    this.input.on('pointermove', p => { if (p.isDown) this.stroke(p, false); });
+    this.input.on('pointerup', () => { this.last = null; });
+    this.cameras.main.fadeIn(400, 255, 230, 245);
+    this.time.delayedCall(500, () => this.next());
+  }
+
+  next() {
+    if (this.left) return;
+    this.round++;
+    if (this.round >= TRACE_ROUNDS) { this.finish(); return; }
+    const q = this.q = this.qs[this.round];
+    this.ch = q.upper ? q.letter : q.letter.toLowerCase();
+    this.progress.setText(`${this.round + 1}/${TRACE_ROUNDS}`);
+    this.title.setText(`${q.upper ? '大寫' : '小寫'} ${this.ch}`);
+    this.hero.setTexture(tex('heroIdle'));
+    this.setupLetter();
+    this.state = 'trace';
+    this.speakQuestion();
+  }
+  speakQuestion() { say([[this.q.upper ? '描一描' : '描一描小寫的', 'zh-TW'], [this.ch, 'en-US']]); }
+
+  // 算出字母的位置，並建立「要描的點」與「可以畫的範圍」
+  setupLetter() {
+    const size = this.q.upper ? 400 : 480, ch = this.ch;
+    const canvas = () => { const c = document.createElement('canvas'); c.width = W; c.height = H; return c.getContext('2d'); };
+    const m = canvas();
+    this.font = `bold ${size}px ${FONT}`;
+    m.font = this.font; m.textBaseline = 'alphabetic'; m.textAlign = 'left';
+    const mm = m.measureText(ch);
+    this.lx = W / 2 - (mm.actualBoundingBoxRight - mm.actualBoundingBoxLeft) / 2;
+    this.ly = TRACE_Y + (mm.actualBoundingBoxAscent - mm.actualBoundingBoxDescent) / 2;
+    m.fillStyle = '#000'; m.fillText(ch, this.lx, this.ly);
+    this.mask = m.canvas; this.raw = canvas();
+    const d = m.getImageData(0, 0, W, H).data;
+    this.targets = [];
+    for (let y = 0; y < H; y += 6) for (let x = 0; x < W; x += 6) if (d[(y * W + x) * 4 + 3] > 128) this.targets.push({ x, y, hit: false });
+    const a = canvas();
+    a.font = this.font; a.textBaseline = 'alphabetic'; a.textAlign = 'left'; a.lineJoin = 'round';
+    a.lineWidth = TRACE_BAND; a.strokeStyle = '#000'; a.strokeText(ch, this.lx, this.ly); a.fillText(ch, this.lx, this.ly);
+    this.allowedData = a.getImageData(0, 0, W, H).data;
+    this.drawTemplate();
+  }
+  allowed(x, y) {
+    x = Math.round(x); y = Math.round(y);
+    return x >= 0 && x < W && y >= 0 && y < H && this.allowedData[(y * W + x) * 4 + 3] > 0;
+  }
+  // 畫出虛線的字母，並清掉手指畫的線
+  drawTemplate() {
+    this.targets.forEach(t => { t.hit = false; });
+    this.covered = 0; this.last = null; this.drawBar();
+    const t = this.tpl.getContext();
+    this.raw.clearRect(0, 0, W, H); this.flushInk();
+    t.clearRect(0, 0, W, H);
+    t.font = this.font; t.textBaseline = 'alphabetic'; t.textAlign = 'left'; t.lineJoin = 'round';
+    t.fillStyle = 'rgba(255,255,255,.8)'; t.fillText(this.ch, this.lx, this.ly);
+    t.lineWidth = 5; t.strokeStyle = '#9b7cc9'; t.setLineDash([16, 14]); t.strokeText(this.ch, this.lx, this.ly); t.setLineDash([]);
+    this.tpl.refresh();
+  }
+  // 手指畫的線先畫在 raw，再裁成字母的形狀貼到畫面上
+  flushInk() {
+    const k = this.ink.getContext();
+    k.globalCompositeOperation = 'source-over'; k.clearRect(0, 0, W, H);
+    k.drawImage(this.raw.canvas, 0, 0);
+    k.globalCompositeOperation = 'destination-in'; k.drawImage(this.mask, 0, 0);
+    k.globalCompositeOperation = 'source-over';
+    this.ink.refresh();
+  }
+  drawBar() {
+    const g = this.bar.clear(), w = 300, p = Math.min(1, this.covered / TRACE_NEED);
+    g.fillStyle(0xffffff, .8).fillRoundedRect(W / 2 - w / 2, 185, w, 22, 11);
+    if (p > 0) g.fillStyle(0xff9db8).fillRoundedRect(W / 2 - w / 2, 185, Math.max(22, w * p), 22, 11);
+  }
+
+  stroke(p, start) {
+    if (this.state !== 'trace') return;
+    if (start) this.last = null;
+    const k = this.raw;
+    k.fillStyle = TRACE_INK[this.round % TRACE_INK.length];
+    const from = this.last, to = { x: p.x, y: p.y };
+    if (!this.allowed(to.x, to.y)) { this.last = null; return; }
+    const n = from ? Math.max(1, Math.ceil(Math.hypot(to.x - from.x, to.y - from.y) / 6)) : 1;
+    for (let i = 1; i <= n; i++) {
+      const x = from ? from.x + (to.x - from.x) * i / n : to.x, y = from ? from.y + (to.y - from.y) * i / n : to.y;
+      if (!this.allowed(x, y)) continue;
+      k.beginPath(); k.arc(x, y, TRACE_BRUSH, 0, Math.PI * 2); k.fill();
+      for (const t of this.targets) if (!t.hit && Math.abs(t.x - x) < TRACE_BRUSH + 6 && Math.abs(t.y - y) < TRACE_BRUSH + 6 && Math.hypot(t.x - x, t.y - y) < TRACE_BRUSH + 6) t.hit = true;
+    }
+    this.last = to;
+    this.flushInk();
+    this.covered = this.targets.filter(t => t.hit).length / this.targets.length;
+    this.drawBar();
+    if (this.covered >= TRACE_NEED) this.win();
+  }
+
+  win() {
+    this.state = 'cheer'; this.done++; this.last = null;
+    const k = this.raw;                                    // 把整個字母填滿顏色
+    k.font = this.font; k.textBaseline = 'alphabetic'; k.textAlign = 'left';
+    k.fillStyle = TRACE_INK[this.round % TRACE_INK.length]; k.fillText(this.ch, this.lx, this.ly); this.flushInk();
+    this.hero.setTexture(tex('heroCheer'));
+    beep([523, 659, 784]); popper(this, this.hero);
+    const voice = say([[`${this.ch}!`, 'en-US'], [pick(PRAISE), 'zh-TW']]);
+    Promise.all([voice, new Promise(r => this.time.delayedCall(1900, r))]).then(() => this.next());
+  }
+  finish() {
+    this.state = 'end';
+    this.cameras.main.fadeOut(600, 255, 230, 245);
+    this.cameras.main.once('camerafadeoutcomplete', () => this.scene.start('End', {
+      score: this.done, max: TRACE_ROUNDS, again: 'Trace', head: '完成', unit: '個字母', msg: `你描了 ${this.done} 個字母，真棒！`
+    }));
+  }
+}
+
 new Phaser.Game({
   type: Phaser.AUTO, parent: 'game', width: W, height: H, backgroundColor: '#d9f7e6',
   scale: { mode: Phaser.Scale.FIT, autoCenter: Phaser.Scale.CENTER_BOTH },
-  scene: [TitleScene, SelectScene, WalkScene, FeedScene, BonusScene, EndScene]
+  scene: [TitleScene, SelectScene, WalkScene, FeedScene, TraceScene, BonusScene, EndScene]
 });

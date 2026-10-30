@@ -318,11 +318,19 @@ function drawPtero(g, pal, { a = 0, b = 0, bob = 0, tail = 0, cheer = false }) {
   if (cheer) g.fillStyle(ACC).fillTriangle(86, 86 - dy, 44, 6, 50, 124 - dy);                    // 前側的翅膀：歡呼時高舉
   else g.fillStyle(ACC).fillTriangle(86, 86 - dy, 34, 108 - dy, 90, 122 - dy);                  // 平常收在身側
   g.fillStyle(BODY).fillCircle(104, 58 - dy, 22);                                               // 頭
-  g.fillStyle(DARK).fillTriangle(90, 44 - dy, 52, 26 - dy, 96, 64 - dy);                        // 頭冠
-  g.fillStyle(BODY).fillTriangle(118, 50 - dy, 158, 60 - dy, 118, 72 - dy);                     // 長長的嘴
+  g.fillStyle(DARK).fillTriangle(92, 42 - dy, 66, 28 - dy, 98, 58 - dy);                        // 頭冠
   g.fillStyle(0xff9db8, 0.7).fillCircle(110, 70 - dy, 5);                                       // 腮紅
   eye(g, 108, 52 - dy, 7, cheer);
-  smile(g, pal, 128, 70 - dy, 6, cheer);
+  // 長長的嘴喙：平常上下喙閉著、中間一條嘴縫；歡呼時下喙張開，露出裡面
+  if (cheer) {
+    g.fillStyle(0xb04a6a).fillTriangle(114, 58 - dy, 154, 55 - dy, 148, 74 - dy).fillTriangle(114, 58 - dy, 148, 74 - dy, 114, 78 - dy);
+    g.fillStyle(BODY).fillTriangle(114, 46 - dy, 160, 54 - dy, 114, 60 - dy);
+    g.fillStyle(BODY).fillTriangle(114, 66 - dy, 148, 74 - dy, 114, 80 - dy);
+    g.fillStyle(0xff9db8).fillEllipse(124, 70 - dy, 12, 6);
+  } else {
+    g.fillStyle(BODY).fillTriangle(116, 48 - dy, 160, 60 - dy, 116, 74 - dy);
+    g.lineStyle(3, DARK).lineBetween(116, 62 - dy, 156, 60 - dy);
+  }
 }
 
 function makeDinoFrame(scene, key, char, pal, opts = {}) {
