@@ -1,0 +1,30 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>小遊戲</title>
+<style>
+  :root { --ink: #7a5c99; }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html, body { margin: 0; min-height: 100%; color: var(--ink);
+    font-family: "Chalkboard SE", "Comic Sans MS", "Noto Sans TC", "Microsoft JhengHei", system-ui, sans-serif; }
+  body { min-height: 100vh; min-height: 100dvh; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 20px; padding: 24px 16px;
+    background: linear-gradient(180deg, #ffd9e8 0%, #e6d9ff 38%, #cdeeff 70%, #d9f7e6 100%); }
+  h1 { margin: 0 0 8px; font-size: 2.4rem; text-align: center; color: #fff; letter-spacing: 2px;
+    text-shadow: 0 3px 0 #c9a7ee, 0 6px 12px rgba(150,110,200,.35); }
+  a.game { display: block; width: min(86vw, 360px); padding: 22px 16px; text-align: center; text-decoration: none; color: #fff; font-size: 1.7rem; font-weight: 700;
+    border: 4px solid #fff; border-radius: 32px; text-shadow: 0 2px 0 rgba(0,0,0,.15);
+    box-shadow: 0 7px 0 rgba(150,110,200,.35), 0 12px 20px rgba(150,110,200,.25); }
+  a.game:active { transform: translateY(5px); box-shadow: 0 2px 0 rgba(150,110,200,.35); }
+  a.game small { display: block; margin-top: 6px; font-size: 1rem; font-weight: 400; opacity: .95; }
+  .g1 { background: linear-gradient(135deg, #ffa8c5, #ffc9a8); }
+  .g2 { background: linear-gradient(135deg, #9ad4f5, #b9a8f5); }
+</style>
+</head>
+<body>
+  <h1>🎮 小遊戲</h1>
+  <a class="game g1" href="abc-adventure/">🦖 ABC 冒險<small>走路、餵恐龍、描字母</small></a>
+  <a class="game g2" href="abc-game/">🔤 ABC 小遊戲<small>戳氣球、字母和圖片</small></a>
+</body>
+</html>
